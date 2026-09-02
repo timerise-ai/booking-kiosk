@@ -9,10 +9,11 @@ description: >
   climbing, escape room, clinic) wants an unattended booking terminal,
   (2) the user mentions: "kiosk mode", "self-service kiosk", "touch screen
   booking", "walk-up terminal", "on-screen keyboard", "counter payment",
-  "PENDING_COUNTER_PAYMENT", (3) an existing kiosk needs auditing or
-  hardening. Ships the session state machine, screen contract, hardened API
-  contract, and the booking-backend seam. Next.js App Router oriented;
-  backend- and payment-provider-agnostic.
+  "PENDING_COUNTER_PAYMENT", (3) an existing kiosk needs auditing against
+  the hard rules. Ships the session state machine with its reducer suite, the
+  screen contract, the server-priced idempotent API contract, and the
+  booking-backend seam. Next.js App Router oriented; backend- and
+  payment-provider-agnostic.
 ---
 
 # Self-Service Booking Kiosk
@@ -28,8 +29,8 @@ from those two facts.
 - Building a walk-up booking terminal for slot-based capacity (stations ×
   time windows) with optional equipment and consumable add-ons.
 - Adding kiosk mode to an app that already has online booking.
-- Auditing an existing kiosk: [provenance.md](references/provenance.md) is a
-  checklist of the defects the audit found in the earlier implementation.
+- Auditing an existing kiosk against the hard rules below;
+  [provenance.md](references/provenance.md) records the reason behind each.
 
 ## When NOT to use
 
@@ -81,12 +82,13 @@ from those two facts.
 > previous one's name. In-memory + 120 s inactivity reset + 30 s
 > confirmation reset, verified on hardware.
 
-> **Never trust the client for prices, capacity, or promo validity** — and
-> never let an invalid promo pass silently; at a kiosk the customer cannot
-> notice they were charged full price.
+> **Never trust the client for prices, capacity, or promo validity.** The
+> server computes every amount and answers an invalid promo with
+> `PROMO_INVALID`; a customer at a kiosk has no way to check the amount.
 
-> **One fetch wrapper for every kiosk request.** Each bare `fetch` is a
-> feature that breaks silently in offline failover.
+> **One fetch wrapper for every kiosk request.** The wrapper carries the
+> device header, the error envelope and the failover base URL, so auth,
+> errors and offline failover apply to every request at once.
 
 > **If the device key is configured, a missing header is a 401.** Reject-only-
 > on-wrong-key is the same as no auth.
@@ -132,4 +134,4 @@ from those two facts.
 | Capacity, stock, payments, webhook, crons | transaction, stock lock, TTL, PENDING_COUNTER_PAYMENT, webhook, refund | [booking-backend.md](references/booking-backend.md) |
 | Live refresh, caching, offline failover | lastBookingChangeAt, onSnapshot, s-maxage, offline banner, LAN, health poll | [realtime-offline.md](references/realtime-offline.md) |
 | Deploying, gating, operator surface | Edge --kiosk, assigned access, heartbeat, feature gate, smoke test | [operations.md](references/operations.md) |
-| Origin, defects fixed/kept/added | audit, defect, fidelity, proven, unproven | [provenance.md](references/provenance.md) |
+| Why the templates differ from the earlier implementation | audit, ledger, kept deliberately, added | [provenance.md](references/provenance.md) |

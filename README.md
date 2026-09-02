@@ -13,12 +13,13 @@ customer must not see the previous one's name. Everything in this skill follows 
 
 It was written by the engineers who have shipped this kiosk module. The earlier implementation it was audited
 against ran as one of several surfaces sharing a booking engine at a multi-location venue with a LAN fallback
-server. The state machine, screen flow, timers, stock model, capacity transaction and offline failover are
-proven there, but the templates are the **hardened** version, not a copy of any code: a three-pass audit of
-that earlier implementation found twelve defect clusters, including device auth that a *missing* header
-walked straight through and Stripe amounts computed from client-supplied prices.
-[`references/provenance.md`](references/provenance.md) names every one, and separates what was fixed, what was
-kept deliberately, and what was designed here and has never run in production.
+server. The templates carry its state machine, screen flow, timers, stock model, capacity transaction and
+offline failover, and hold the properties a kiosk has to hold: every price, capacity check and promo decision
+is computed on the server; every submit is idempotent; a configured device key makes a missing header a 401;
+a stock lock is released on every failure path; a session lives in memory and resets on inactivity. Each one
+is stated as what the reducer suite and the route guard tables verify.
+[`references/provenance.md`](references/provenance.md) is the record of what the audit changed, what was kept
+deliberately, and what is new in the skill.
 
 ## Install
 
@@ -48,7 +49,7 @@ mkdir -p ~/.agents/skills
 ln -s ~/.claude/skills/booking-kiosk ~/.agents/skills/booking-kiosk
 ```
 
-Update the skill with `git pull` in its directory. The current release is **0.1.3**. See
+Update the skill with `git pull` in its directory. The current release is **0.1.4**. See
 [`CHANGELOG.md`](CHANGELOG.md). The [skills index](https://github.com/timerise-ai/skills) lists the other
 Timerise Skills and how to install them all at once.
 
@@ -73,10 +74,10 @@ the skill stays cheap in context until a topic is actually needed.
 | `references/state-machine.md` | Canonical vocabulary and rename table, state shape, actions, the reducer and provider, the rules an orchestrator must follow, and 12 inline reducer tests |
 | `references/screens.md` | Screen flow, the per-screen contract, payment-method resolution, the on-screen keyboard, the inactivity timer, touch hardening, modals, and the dictionary key tree |
 | `references/api-contract.md` | Route surface, device auth, the single error envelope, create / lookup / add-items / edit with their guard tables, and the one-fetch-wrapper client rule |
-| `references/booking-backend.md` | The `KioskBackend` interface, the capacity transaction, the two stock models, payments, failure modes, a Firestore reference implementation as audited in the earlier implementation, and a relational sketch |
+| `references/booking-backend.md` | The `KioskBackend` interface, the capacity transaction, the two stock models, payments, failure modes, a Firestore reference implementation, and a relational sketch |
 | `references/realtime-offline.md` | The freshness signal, availability fetching and caching, offline failover against a LAN server, and what stays out |
 | `references/operations.md` | Launching the kiosk, access gating, the operator surface, environment variables, and the post-deploy smoke test |
-| `references/provenance.md` | The twelve defects found in the earlier implementation and how the templates fix them, plus what was kept deliberately and what was added unproven |
+| `references/provenance.md` | The engineering ledger: what the audit of the earlier implementation changed and how the templates verify it, what was kept deliberately, and what is new in the skill |
 
 The seam contract lives in the **Adaptation Contract** table in `SKILL.md`: it bounds what the host app must
 supply: its domain vocabulary, location model, device-key management, ORM or SDK behind `KioskBackend`,
@@ -88,19 +89,21 @@ defines only the kiosk's client-side failover contract against it.
 
 ## The five non-negotiables
 
-These travel with the module and are never optional (they are the hard rules in `SKILL.md`, and each one is a
-live defect from the earlier implementation or a deliberate design decision; see `references/provenance.md`):
+These travel with the module and are never optional. They are the hard rules in `SKILL.md`: each one is the
+rule, the reason it holds, and what verifies it (`references/provenance.md` has the record behind each):
 
-1. **Never persist kiosk session state.** In memory, 120 s inactivity reset, 30 s confirmation reset. An
-   abandoned session must not show one customer's name to the next.
-2. **Never trust the client for prices, capacity, or promo validity**, and never let an invalid promo pass
-   silently. At a kiosk the customer cannot notice they were charged full price.
-3. **One fetch wrapper for every kiosk request.** Each bare `fetch` is a feature that breaks silently in
-   offline failover.
-4. **If the device key is configured, a missing header is a 401.** Reject-only-on-wrong-key is the same as no
-   auth, which is exactly how the earlier implementation shipped.
+1. **Never persist kiosk session state.** In memory, 120 s inactivity reset, 30 s confirmation reset, so an
+   abandoned session never shows one customer's name to the next. The reducer suite covers the reset paths.
+2. **Never trust the client for prices, capacity, or promo validity.** The server computes every amount and
+   answers an invalid promo with `PROMO_INVALID` instead of a full-price fallback, because a customer at a
+   kiosk has no way to check the amount. The guard tables in `references/api-contract.md` state each check.
+3. **One fetch wrapper for every kiosk request.** The wrapper carries the device header, the error envelope
+   and the failover base URL, so auth, errors and offline failover apply to every request at once.
+4. **If the device key is configured, a missing header is a 401.** Rejecting only a wrong key is the same as
+   no auth. The device-auth guard in `references/api-contract.md` checks presence before value.
 5. **Release stock locks on every failure path after acquiring them.** A 409 that keeps the reservation
-   freezes stock for the full 15-minute TTL.
+   freezes stock for the full 15-minute TTL. The failure-mode table in `references/booking-backend.md` lists
+   every path.
 
 One more invariant is the module's signature: **`SET_SLOT` navigates, `REFRESH_SLOT` never does.** User taps
 move the customer; background availability refreshes must not teleport them off the summary screen
@@ -125,8 +128,8 @@ once the templates are copied into a host project. Claims in this skill are mean
 change a factual claim, say how you verified it, whether against the library, the docs, or a reproduction.
 
 Adding, removing or renaming a file in `references/` means updating the quick start and the reference
-directory table in `SKILL.md`, the file table above, and any relative cross-links. The odd-looking parts of
-the templates encode documented defects, and `references/provenance.md` is the ledger that must stay truthful:
+directory table in `SKILL.md`, the file table above, and any relative cross-links. Every odd-looking part of
+the templates is there for a reason `references/provenance.md` records, and that ledger must stay truthful:
 read it before simplifying anything, and add an entry for anything you change. Commits follow Conventional
 Commits and releases follow [STANDARD.md](https://github.com/timerise-ai/skills/blob/main/STANDARD.md) in the
 index; `CLAUDE.md` carries the full editing conventions.

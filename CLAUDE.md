@@ -56,8 +56,8 @@ Cross-links between references are relative and sibling-style
 (`[screens.md](screens.md)`); links from SKILL.md are `references/`-prefixed.
 
 **`references/provenance.md` is the audit ledger and must stay truthful.** It
-is the only place that distinguishes production-proven material from
-designed-but-unproven material. Keep it free of the earlier implementation's
+is the only place that distinguishes what ran in the earlier implementation
+from what was designed here. Keep it free of the earlier implementation's
 own paths, component names and domain terms. Any change to a template updates it:
 - fixing a newly found defect: a numbered entry under *Fixed in the templates*
 - keeping a questionable earlier choice: an entry under *Kept deliberately*
@@ -73,9 +73,9 @@ changing any statement of its size.
 **Do not weaken the five hard rules** in SKILL.md (no session persistence, no
 client-trusted prices/capacity/promo, one fetch wrapper, configured key ⇒
 required header, release stock locks on every failure path). They correspond to
-fixes 1, 2, 5 and 6 in the provenance ledger and to the *Kept deliberately*
-entries: each is a live defect the audit found or a deliberate design
-decision, not a stylistic preference.
+entries 1, 2, 5 and 6 in the provenance ledger and to the *Kept deliberately*
+entries: each holds for a reason the ledger records, not as a stylistic
+preference.
 
 ## Content invariants the templates depend on
 
@@ -102,18 +102,18 @@ These recur across references; changing one requires sweeping all of them.
   keep working on the side-flow steps, which are outside `STEP_ORDER`.
 - **Every screen string is a required dictionary key.** The key tree in
   `references/screens.md` is canonical; a screen that reads a key not in the
-  tree, or a tree key no screen reads, is a defect (the earlier implementation shipped both).
+  tree, or a tree key no screen reads, is an error.
 - **The `KioskBackend` interface in `references/booking-backend.md` is the only
   data seam.** Routes in `api-contract.md` call nothing else; new backend
   capability means a new method on that interface.
 - **Money is integer minor units end to end**, converted only at the payment
   provider boundary. No price ever crosses the wire inbound.
-- **Timer values are production-proven constants**: 120 s inactivity → dim
-  overlay + `RESET`, 30 s confirmation auto-reset, 15 min stock-lock TTL, 5 s
-  health poll with a 3 s abort and 3 consecutive failures before flipping
-  offline, 1–2 h stale-PENDING cleanup. They appear in `state-machine.md`,
-  `screens.md`, `realtime-offline.md` and `booking-backend.md` — change one,
-  change all, and say so in `provenance.md`.
+- **Timer values are fixed constants, verified on hardware**: 120 s
+  inactivity, then the dim overlay and `RESET`; 30 s confirmation auto-reset;
+  15 min stock-lock TTL; 5 s health poll with a 3 s abort and 3 consecutive
+  failures before flipping offline; 1 to 2 h stale-PENDING cleanup. They
+  appear in `state-machine.md`, `screens.md`, `realtime-offline.md` and
+  `booking-backend.md`: change one, change all, and say so in `provenance.md`.
 - **Env var names** in `references/operations.md` are the canonical list
   (`KIOSK_API_KEY`, public base URL, payment keys + webhook secret, LAN
   fallback URL). Reference them by the same names in `api-contract.md` and
