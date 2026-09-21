@@ -11,7 +11,7 @@ templates that teach another agent how to build a self-service booking kiosk in
 git tag; there is no version field anywhere in the tree.
 
 ```
-SKILL.md                  entry point: frontmatter trigger + critical facts + hard rules + routing table
+SKILL.md                  entry point: frontmatter trigger + critical facts + hard rules + routing table + index line
 references/*.md           6 topic files + provenance.md, loaded on demand by the routing table
 CHANGELOG.md              Keep a Changelog; one section per git tag
 README.md                 human-facing: install, contents table, the five non-negotiables

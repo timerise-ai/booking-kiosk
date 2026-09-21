@@ -135,3 +135,5 @@ from those two facts.
 | Live refresh, caching, offline failover | lastBookingChangeAt, onSnapshot, s-maxage, offline banner, LAN, health poll | [realtime-offline.md](references/realtime-offline.md) |
 | Deploying, gating, operator surface | Edge --kiosk, assigned access, heartbeat, feature gate, smoke test | [operations.md](references/operations.md) |
 | Why the templates differ from the earlier implementation | audit, ledger, kept deliberately, added | [provenance.md](references/provenance.md) |
+
+Part of the [Timerise Skills](https://github.com/timerise-ai/skills) index, which lists the sibling skills.
