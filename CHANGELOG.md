@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-09-29
+
+Wording release that brings the repository to the skill standard. The templates behave as in 0.1.5; only
+their comments, diagrams and two glyphs are written in ASCII.
+
+### Added
+
+- `evals/prompts.md` with three operator prompts, and the agent eval workflow caller in
+  `.github/workflows/agent-eval.yml`, so every published release runs the prompt-1 eval.
+- The README file table lists every file in the repository, the `evals/` folder and the workflow.
+
+### Changed
+
+- The `SKILL.md` frontmatter description follows the standard's order and ends with what the skill is not;
+  the body says the Adaptation Contract table is the skill's seam contract.
+- `CLAUDE.md` is organised as what the repository is, its structure and its editing conventions.
+- Em-dashes, en-dashes, arrows, middle dots and box-drawing characters are replaced with plain punctuation
+  across the markdown, and the diagrams are drawn in ASCII. In `references/screens.md` the empty keyboard
+  output and the backspace key use `'\u00A0'` and `'\u232B'`, and the masked lookup example in
+  `references/api-contract.md` reads `m***@d***.com`.
+- The older changelog entries describe the earlier implementation without naming its stack or origin
+  wording the standard bans.
+
 ## [0.1.5] - 2026-09-21
 
 Wording release. The skill content is unchanged from 0.1.4.
