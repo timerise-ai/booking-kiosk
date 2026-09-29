@@ -1,6 +1,6 @@
 # Kiosk API contract
 
-Four kiosk-owned endpoints plus the shared read endpoints the screens consume.
+Five kiosk-owned endpoints plus the shared read endpoints the screens consume.
 The kiosk client is unauthenticated by nature, anyone standing at the screen
 is a legitimate user, so the server, not the client, is where every trust
 decision lives.
@@ -13,6 +13,7 @@ decision lives.
 | `/api/kiosk/booking/lookup?shortId=` | GET | Find booking by short code (edit flow) | device key + rate limit |
 | `/api/kiosk/booking/add-items` | POST | Append consumables to an existing booking | device key |
 | `/api/kiosk/booking/edit` | POST | Update participants / contact on a booking | device key |
+| `/api/kiosk/promo/validate` | POST | Check a promo code against the cart, priced on the server | device key |
 | `/api/pricing/get?locationId=` | GET | Price catalog (slots + consumables) | public read |
 | `/api/inventory/equipment?locationId=&from=&to=` | GET | Equipment available in a window | public read |
 | `/api/booking/slots?...` | GET | Month + day availability | public read, CDN-cached |
@@ -81,7 +82,9 @@ messages (collection names, stack fragments) to an unauthenticated endpoint.
 Codes the client must handle: `SLOT_UNAVAILABLE`, `STATION_TAKEN`,
 `NO_STATIONS`, `INSUFFICIENT_STOCK` (with `item`/`requested`/`available`
 interpolated into the message), `BOOKING_TIME_IN_PAST`, `PROMO_INVALID`,
-`STRIPE_DISABLED`, `PAYMENT_REQUIRED` (402, deployment/module blocked).
+`STRIPE_DISABLED`, `PAYMENT_REQUIRED` (402, deployment/module blocked). Each
+is a key under `kiosk.errors` ([screens.md](screens.md)); any other failure
+shows `kiosk.errors.generic`.
 
 ## Create
 
@@ -153,6 +156,45 @@ function isQuantity(v: unknown): v is number {
 function isIsoDate(v: unknown): v is string {
   return typeof v === 'string' && !Number.isNaN(Date.parse(v));
 }
+function isOptionalString(v: unknown, max: number): boolean {
+  return v === undefined || (typeof v === 'string' && v.length <= max);
+}
+
+/** The cart as create and the promo check both take it: slots required,
+ *  equipment optional, consumables normalised to an array. */
+export function parseCart(value: unknown): KioskCreateRequest['cart'] | { error: string } {
+  const cart = typeof value === 'object' && value !== null
+    ? value as Record<string, unknown> : undefined;
+  const slots = Array.isArray(cart?.slots) ? cart.slots : null;
+  if (!slots || slots.length === 0 || slots.length > MAX_SLOTS)
+    return { error: 'slots_invalid' };
+  for (const s of slots as Array<Record<string, unknown>>) {
+    if (typeof s !== 'object' || s === null ||
+        !isNonEmptyString(s.slotId, 100) || !isNonEmptyString(s.station, 100) ||
+        !isIsoDate(s.dateTimeFrom) || !isIsoDate(s.dateTimeTo))
+      return { error: 'slot_shape_invalid' };
+  }
+  const equipment = cart?.equipment;
+  if (equipment !== undefined) {
+    if (!Array.isArray(equipment) || equipment.length > MAX_LINES)
+      return { error: 'equipment_invalid' };
+    for (const e of equipment as Array<Record<string, unknown>>) {
+      if (typeof e !== 'object' || e === null || !isNonEmptyString(e.slug, 100) ||
+          !isOptionalString(e.inventoryItemId, 100) ||
+          (e.quantity !== undefined && !isQuantity(e.quantity)))
+        return { error: 'equipment_shape_invalid' };
+    }
+  }
+  const consumables = cart?.consumables === undefined ? [] : cart.consumables;
+  if (!Array.isArray(consumables) || consumables.length > MAX_LINES)
+    return { error: 'consumables_invalid' };
+  for (const c of consumables as Array<Record<string, unknown>>) {
+    if (typeof c !== 'object' || c === null ||
+        !isNonEmptyString(c.itemId, 100) || !isQuantity(c.quantity))
+      return { error: 'consumable_shape_invalid' };
+  }
+  return { ...(cart as KioskCreateRequest['cart']), consumables } as KioskCreateRequest['cart'];
+}
 
 export function parseCreateRequest(body: unknown): KioskCreateRequest | { error: string } {
   if (typeof body !== 'object' || body === null) return { error: 'invalid_body' };
@@ -164,28 +206,22 @@ export function parseCreateRequest(body: unknown): KioskCreateRequest | { error:
   if (b.paymentMethod !== 'online' && b.paymentMethod !== 'counter')
     return { error: 'paymentMethod_invalid' };
   if (!isNonEmptyString(b.currency, 3)) return { error: 'currency_invalid' };
+  if (!isNonEmptyString(b.locale, 20)) return { error: 'locale_invalid' };
+  // Optional fields reach the backend as they are, so each one is either absent
+  // or the type the interface says: a number or an object is not a promo code.
+  if (!isOptionalString(b.email, 200) || !isOptionalString(b.phone, 40) ||
+      !isOptionalString(b.promoCode, 50) || !isOptionalString(b.parentBookingId, 100))
+    return { error: 'optional_field_invalid' };
 
-  const cart = b.cart as Record<string, unknown> | undefined;
-  const slots = Array.isArray(cart?.slots) ? cart.slots : null;
-  if (!slots || slots.length === 0 || slots.length > MAX_SLOTS)
-    return { error: 'slots_invalid' };
-  for (const s of slots as Array<Record<string, unknown>>) {
-    if (!isNonEmptyString(s.slotId, 100) || !isNonEmptyString(s.station, 100) ||
-        !isIsoDate(s.dateTimeFrom) || !isIsoDate(s.dateTimeTo))
-      return { error: 'slot_shape_invalid' };
-  }
-  const consumables = Array.isArray(cart?.consumables) ? cart.consumables : [];
-  if (consumables.length > MAX_LINES) return { error: 'consumables_invalid' };
-  for (const c of consumables as Array<Record<string, unknown>>) {
-    if (!isNonEmptyString(c.itemId, 100) || !isQuantity(c.quantity))
-      return { error: 'consumable_shape_invalid' };
-  }
-  const participants = Array.isArray(b.participants) ? b.participants : [];
-  if (participants.length > MAX_PARTICIPANTS ||
+  const cart = parseCart(b.cart);
+  if ('error' in cart) return cart;
+  const participants = b.participants === undefined ? [] : b.participants;
+  if (!Array.isArray(participants) || participants.length > MAX_PARTICIPANTS ||
       participants.some((p) => !isNonEmptyString(p, NAME_MAX)))
     return { error: 'participants_invalid' };
 
-  return body as KioskCreateRequest;   // shape now proven field-by-field
+  // Shape now proven field-by-field; the cart is the normalised one.
+  return { ...(body as KioskCreateRequest), cart };
 }
 ```
 
@@ -289,7 +325,10 @@ export async function POST(request: Request) {
   }
 
   if (body.paymentMethod === 'counter') {
-    await backend.confirmStockLocks(locks.ids, created.bookingId);
+    // The booking exists from here on, so it is answered as created. A confirm
+    // that failed after its own retry has flagged the booking for operators.
+    await backend.confirmStockLocks(locks.ids, created.bookingId)
+      .catch((e) => console.error('kiosk stock confirm failed', created.bookingId, e));
     if (promoId) await backend.recordPromoUse(promoId).catch(() => {});
     backend.sendConfirmation(created, body.locale).catch(() => {});  // fire-and-forget, but caught
     return ok({ bookingId: created.bookingId, shortId: created.shortId }, 201);
@@ -333,6 +372,47 @@ Notes on that ordering:
   counter payment stays available. Left PENDING, the booking would hold its
   stations and its locks until the cleanup jobs ran.
 
+### Promo check
+
+The summary screen's promo field asks the server before submit, so an invalid
+code shows `PROMO_INVALID` at the field rather than at create. The body carries
+the cart, never an amount; the server prices it the way create does and writes
+nothing. Create still re-validates: a check is a preview, not a reservation.
+
+```ts
+// file: app/api/kiosk/promo/validate/route.ts
+import { err, ok } from '@/lib/kiosk/envelope';
+import { checkKioskKey } from '@/lib/kiosk/server/auth';
+import { backend } from '@/lib/kiosk/server/instance';
+import { parseCart } from '@/lib/kiosk/server/validation';
+
+export async function POST(request: Request) {
+  if (!checkKioskKey(request)) return err(401, 'unauthorized');
+  let raw: unknown;
+  try { raw = await request.json(); } catch { return err(400, 'invalid_json'); }
+  if (typeof raw !== 'object' || raw === null) return err(400, 'invalid_body');
+  const b = raw as Record<string, unknown>;
+  const { serviceType, locationId, currency, promoCode } = b;
+  if (typeof serviceType !== 'string' || typeof locationId !== 'string' ||
+      typeof currency !== 'string' || typeof promoCode !== 'string' ||
+      promoCode.length === 0 || promoCode.length > 50)
+    return err(400, 'invalid_body');
+  const cart = parseCart(b.cart);
+  if ('error' in cart) return err(400, cart.error);
+
+  const pricing = await backend.resolvePricing({
+    locationId, serviceType, currency, slots: cart.slots, consumables: cart.consumables,
+  });
+  if (!pricing.ok) return err(400, pricing.error);
+  const promo = await backend.validatePromo(promoCode, {
+    currency, locationId, subtotal: pricing.value.subtotal,
+  });
+  if (!promo.valid) return err(400, 'PROMO_INVALID', { code: 'PROMO_INVALID' });
+  return ok({ discount: promo.discountAmount,
+              grandTotal: pricing.value.grandTotal - promo.discountAmount });
+}
+```
+
 ## Lookup
 
 `GET /api/kiosk/booking/lookup?shortId=`, min 3 chars, trimmed, uppercased.
@@ -362,6 +442,7 @@ the earlier implementation was missing on one or the other:
 | Guard | Why |
 |---|---|
 | Same `locationId` as the booking | cross-location tampering (the earlier implementation had this) |
+| An `idempotencyKey` per attempt, minted when the add dialog opens and checked like create's | a double tap or a retried request appended the same lines twice; a disabled button is not a server guard |
 | Booking not `CANCELLED` | the earlier implementation's add-items path locked stock and charged against cancelled bookings |
 | Module/feature gates identical to create | the earlier implementation's edit route skipped them |
 | Pricing recomputed **server-side, preserving the original discount** | the earlier implementation recalculated without the promo, silently un-discounting the booking on every edit |

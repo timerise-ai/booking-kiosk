@@ -12,7 +12,7 @@ description: >
   mentions: kiosk mode, self-service kiosk, touch screen booking, walk-up
   terminal, on-screen keyboard, inputMode none, inactivity reset, counter
   payment, PENDING_COUNTER_PAYMENT, x-kiosk-api-key, SET_SLOT, REFRESH_SLOT,
-  PROMO_INVALID, stock lock. Carries the session reducer with its 13-test suite,
+  PROMO_INVALID, stock lock. Carries the session reducer with its 14-test suite,
   the screen contract and dictionary key tree, a server-priced idempotent API
   contract with guard tables, stock locks released on every failure path, and
   offline failover against a LAN server. Next.js App Router with React context;
@@ -108,7 +108,7 @@ from those two facts.
    Never rewrite, harden or restructure a template: a defect you find in one
    goes in the handover, not into the code.
 2. Install vitest (`npm i -D vitest`; the package registry is not an external
-   service), set `"test": "vitest run"` and run the 13 reducer tests unchanged:
+   service), set `"test": "vitest run"` and run the 14 reducer tests unchanged:
    no other runner, no `expect` shim, no edited assertion.
 3. Build screens against the contract in [screens.md](references/screens.md)
    with the host's design system: keyboard, timers, touch hardening.

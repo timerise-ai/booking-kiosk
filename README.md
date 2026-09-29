@@ -80,7 +80,7 @@ the skill stays cheap in context until a topic is actually needed.
 | File | Contents |
 |---|---|
 | `SKILL.md` | Entry point: when to use and when not to, the architecture diagram, six critical facts, five hard rules, the quick start, the Adaptation Contract table, and the reference directory |
-| `references/state-machine.md` | Canonical vocabulary and rename table, state shape, actions, the reducer and provider, the rules an orchestrator must follow, and 13 inline reducer tests |
+| `references/state-machine.md` | Canonical vocabulary and rename table, state shape, actions, the reducer and provider, the rules an orchestrator must follow, and 14 inline reducer tests |
 | `references/screens.md` | Screen flow, the per-screen contract, payment-method resolution, the on-screen keyboard, the inactivity timer, touch hardening, modals, and the dictionary key tree |
 | `references/api-contract.md` | Route surface, device auth, the single error envelope, create / lookup / add-items / edit with their guard tables, and the one fetch wrapper, `createKioskFetch` |
 | `references/booking-backend.md` | The `KioskBackend` interface, the capacity transaction, the two stock models, payments, failure modes, a Firestore reference implementation, and a relational sketch |

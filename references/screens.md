@@ -25,14 +25,14 @@ step), language switcher right.
 | Step | Renders | Required states | Key rules |
 |---|---|---|---|
 | *(no `?locationId`)* | location grid | loading, **empty**, list | Auto-redirect when exactly one location. The earlier implementation had no empty state, ship one. |
-| `service-select` | large cards per service type + "I have a booking" | none | Doubles as the attract screen; inactivity overlay suppressed here. |
+| `service-select` | large cards per service type + "I have a booking" | none | Doubles as the attract screen; inactivity overlay suppressed here, but the timer still runs, and resets the session while `parentBookingId` is set. |
 | `date-select` | month calendar, Monday-first | loading, no-slots day, past-day disabled | Availability-aware: dead days disabled. "Today" must come from a ticking clock, the earlier implementation memoized it once, so a kiosk left on overnight disabled the wrong days until reload. |
 | `time-select` | slot grid with `available/total` per slot | loading, empty (`noSlots`), past-slot disabled | Live indicator + last-updated age. Past cutoff needs a at most 1 s tick (see below). |
 | `participants` | station tiles + per-station name list, on-screen keyboard | station taken (disabled), validation (first name required) | Tiles re-render from `selectedSlot.takenStations`; `REFRESH_SLOT` already dropped stolen selections, so local UI state must derive from context, not a one-shot `useState` init. |
 | `equipment` | category tabs, item grid, consumable quantity steppers | empty category, item disabled when no compatible consumable in stock | Selecting equipment auto-adds its compatible consumable line (match on `compatibilityKey`). Skippable step. |
 | `summary` | order recap, promo code, contact fields, payment choice, sticky submit bar | promo error, submit error inline, submitting | All text fields open the on-screen keyboard. Payment method resolved at submit time (below). |
 | `confirmation` | huge `shortId`, per-method instructions, QR for online payment, countdown | none | Auto-reset 30 s. |
-| `booking-lookup` | code entry (min 3 chars) via on-screen keyboard | searching, not-found | 404 and network failure both show `notFound`, a kiosk user cannot act on the difference. |
+| `booking-lookup` | code entry (min 3 chars) via on-screen keyboard | searching, not-found | 404 and network failure both show `notFound`, a kiosk user cannot act on the difference. Idle reset applies. |
 | `booking-edit` | booking recap + actions: add consumables, add slot | no consumables configured, submitting, error | "Add slot" stores `parentBookingId`, resets to `service-select`, and shows a persistent "editing booking #X" banner until done. |
 
 Errors are always inline text next to the action that failed, never toasts.
@@ -215,7 +215,7 @@ Wiring (values proven in production):
 
 | Timer | Value | Behavior |
 |---|---|---|
-| Inactivity | 120 s | Show full-screen dim overlay ("touch to continue"); any tap hides it. On top of that, `RESET` the session, except on `service-select` (nothing to lose) and the `booking-*` side-flow steps (a staff-assisted flow shouldn't self-destruct mid-help). |
+| Inactivity | 120 s | Show full-screen dim overlay ("touch to continue"); any tap hides it. On top of that, `RESET` the session whenever `resetsOnIdle(state)` holds ([state-machine.md](state-machine.md)): every state but an untouched `service-select`. The `booking-*` side-flow steps reset too, because they show a customer's booking, and so does `service-select` while `parentBookingId` is set, or the next customer would book onto that booking. |
 | Confirmation auto-reset | 30 s | Visible countdown ("returning in {n}s"), then `RESET`. Restart the countdown state whenever the effect re-runs, the earlier implementation kept a stale `remaining` across re-runs. |
 | Now-tick for time UI | 1 s where seconds are shown | The earlier implementation ticked every 60 s under a "{n}s ago" label and a slot-started cutoff: the age lurched in minute jumps and started slots stayed tappable up to 59 s. Tick at the granularity you display. |
 
@@ -300,11 +300,18 @@ kiosk.editingBooking (template with {shortId})
 kiosk.live           { label, ago }   - ago is a template with {seconds}
 kiosk.offline        (string - offline banner)
 kiosk.back           (string)
+kiosk.errors         { SLOT_UNAVAILABLE, STATION_TAKEN, NO_STATIONS,
+                       INSUFFICIENT_STOCK, BOOKING_TIME_IN_PAST, PROMO_INVALID,
+                       STRIPE_DISABLED, PAYMENT_REQUIRED, generic }
+                       - INSUFFICIENT_STOCK is a template with {item},
+                         {requested}, {available}; generic covers any other
+                         failure, a network error included
 ```
 
 Rules learned the hard way: make every key the screens read **required** in
 the dictionary type (the earlier implementation's optional keys hid missing translations);
 booking-availability error strings go through the dictionary too (the earlier implementation
-hardcoded them in one language inside a shared hook); and the default station
+hardcoded them in one language inside a shared hook), keyed by the envelope's `code` under
+`kiosk.errors`; and the default station
 label sent to the API is data, not UI copy, never fall back to a hardcoded
 localized string for a value that gets persisted.

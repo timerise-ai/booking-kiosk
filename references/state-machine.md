@@ -195,6 +195,14 @@ export function createInitialState(): KioskState {
   };
 }
 
+/** Whether the inactivity timeout RESETs this state. Only the untouched entry
+ *  screen keeps it: a session adding a slot to a looked-up booking
+ *  (parentBookingId set) sits on service-select too, and the side-flow steps
+ *  show a customer's booking, so both must clear before the next customer. */
+export function resetsOnIdle(state: KioskState): boolean {
+  return state.step !== 'service-select' || state.parentBookingId !== null;
+}
+
 export function kioskReducer(state: KioskState, action: KioskAction): KioskState {
   switch (action.type) {
     case 'SET_SERVICE':
@@ -361,14 +369,14 @@ export function useKiosk(): KioskContextValue {
   never read it, while the server minted timestamp keys that collide across
   terminals.
 - **Session lifecycle timers** (values proven in production): inactivity
-  timeout 120 s to dim overlay; any touch wakes; timeout on any step except the
-  entry and side-flow steps also dispatches `RESET`. Confirmation screen
-  auto-resets after 30 s with a visible countdown. See
-  [screens.md](screens.md) for the components.
+  timeout 120 s to dim overlay; any touch wakes; the timeout also dispatches
+  `RESET` whenever `resetsOnIdle(state)` holds, which is every state but the
+  untouched entry screen. Confirmation screen auto-resets after 30 s with a
+  visible countdown. See [screens.md](screens.md) for the components.
 
 ## Reducer tests
 
-Thirteen tests in one `describe('kioskReducer')` block. Install vitest
+Fourteen tests in one `describe('kioskReducer')` block. Install vitest
 (`npm i -D vitest`; the package registry is not an external service, even where
 the task says none are reachable), set `"test": "vitest run"`, and run them
 unchanged; `bun test` runs the same file as it is. Never convert the suite to
@@ -380,7 +388,7 @@ edit the file takes.
 // file: lib/kiosk/kiosk-context.test.ts
 import { describe, expect, it } from 'vitest';
 import {
-  createInitialState, kioskReducer,
+  createInitialState, kioskReducer, resetsOnIdle,
   type AvailabilitySlot, type KioskState,
 } from './kiosk-context';
 
@@ -494,6 +502,13 @@ describe('kioskReducer', () => {
     });
     const out = kioskReducer(s, { type: 'UPDATE_QUANTITY', itemId: 'i1', quantity: -5 });
     expect(out.cart[0]?.quantity).toBe(0);
+  });
+
+  it('idle reset spares only the untouched entry screen', () => {
+    expect(resetsOnIdle(createInitialState())).toBe(false);
+    expect(resetsOnIdle(atStep('service-select', { parentBookingId: 'b1' }))).toBe(true);
+    expect(resetsOnIdle(atStep('booking-edit', { lookupBooking: {} as never }))).toBe(true);
+    expect(resetsOnIdle(atStep('summary'))).toBe(true);
   });
 
   it('RESET regenerates the sessionId', () => {

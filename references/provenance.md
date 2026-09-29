@@ -148,6 +148,34 @@ releases its locks and stations and clears its idempotency key; the route
 calls it and answers 502 ([api-contract.md](api-contract.md),
 [booking-backend.md](booking-backend.md)).
 
+### 15. Optional fields reached the backend unchecked
+Found by the prompt-1 agent eval of 0.1.7, reported in its handover.
+`parseCreateRequest` said the shape was proven field by field, yet accepted a
+number as `promoCode`, an object as `parentBookingId`, an array as `email`, a
+missing `locale`, any value as `equipment`, and a `null` slot, which threw; a
+missing `consumables` array passed through as `undefined`.
+**Shipped:** every optional field is absent or a bounded string, equipment
+lines are checked, and `parseCart` returns the cart with `consumables`
+normalised, shared by create and the promo check ([api-contract.md](api-contract.md)).
+
+### 16. A failed stock confirm answered 500 for a booking that existed
+Found by the same eval. On the counter path the route awaited
+`confirmStockLocks` after the booking was committed; a confirm that threw
+escaped the route, and the customer saw an error for a booking that was made.
+**Shipped:** the confirm contract is retry once, flag the booking, reject; the
+route logs the rejection and answers 201 ([booking-backend.md](booking-backend.md)).
+
+### 17. An idle kiosk kept a booking on screen
+Found by the same eval. The inactivity timeout spared `service-select` and the
+`booking-*` side flow. A session adding a slot to a looked-up booking sits on
+`service-select` with `parentBookingId` set, so the next customer could book
+onto it; the side flow showed a looked-up customer's name until someone
+touched the screen. Both break the first hard rule.
+**Shipped:** `resetsOnIdle` in the reducer module spares only the untouched
+entry screen, with the fourteenth reducer test ([state-machine.md](state-machine.md),
+[screens.md](screens.md)). The staff-assisted exemption of the side flow is
+dropped: a staff member who is helping touches the screen.
+
 ## Kept deliberately
 
 - **In-memory session state, no persistence**: an abandoned session must
@@ -177,6 +205,9 @@ calls it and answers 502 ([api-contract.md](api-contract.md),
   bypassed; this one is written here and has not run in production.
 - `checkKioskKey` compares SHA-256 digests with `timingSafeEqual` instead of
   `===`; two agent evals of 0.1.6 hardened it this way on their own.
+- The `/api/kiosk/promo/validate` route, the per-attempt idempotency key on
+  add-items and the `kiosk.errors` dictionary keys, each a gap an agent eval of
+  0.1.7 filled on its own.
 - `failPendingBooking` as a named seam method, and the `.env.example` rule
   with the variable names `KIOSK_PUBLIC_BASE_URL` and `KIOSK_LAN_FALLBACK_URL`.
 - Idempotency-key round trip.

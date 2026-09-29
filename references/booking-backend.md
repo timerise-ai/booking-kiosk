@@ -78,6 +78,9 @@ export interface KioskBackend {
     consumables: Array<{ itemId: string; quantity: number }>;
   }): Promise<{ ok: true; ids: string[] }
             | { ok: false; detail: { item: string; requested: number; available: number } }>;
+  /** Retries once, then flags the booking for operators (stockConfirmFailed)
+   *  and rejects; the create route logs the rejection and still answers 201,
+   *  because the booking exists. */
   confirmStockLocks(ids: string[], bookingId: string): Promise<void>;
   releaseStockLocks(ids: string[]): Promise<void>;
 
@@ -219,7 +222,7 @@ Webhook rules proven necessary:
 | Station taken between tap and submit | 409 `STATION_TAKEN` from the create tx; locks released | `REFRESH_SLOT` usually catches it first and drops the station; else show the mapped error inline, stay on summary |
 | Not enough stock | 409 `INSUFFICIENT_STOCK` + item/requested/available | interpolated inline message |
 | Slot started while user dawdled | 400 `BOOKING_TIME_IN_PAST` | 1 s now-tick disables the slot first; error inline as backstop |
-| Promo invalid/expired/exhausted | 400 `PROMO_INVALID` at validate **and** at create | inline error at the promo field |
+| Promo invalid/expired/exhausted | 400 `PROMO_INVALID` at `/api/kiosk/promo/validate` **and** at create | inline error at the promo field |
 | Checkout session cannot be created | 502 `checkout_failed`; `failPendingBooking` releases locks and stations | error inline on summary; counter payment still offered |
 | Payment webhook never arrives | stale-PENDING job fails the booking, releases locks | customer at the counter: staff look up the shortId and take payment manually |
 | Paid but capacity lost | booking flagged for refund, operator alerted | none |
