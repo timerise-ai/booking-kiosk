@@ -18,7 +18,7 @@ template in the same file, or by running it in a target project after adaptation
 
 The skill was written by the engineer who has shipped this module; the earlier implementation it was audited
 against was a venue kiosk, one of several surfaces sharing a booking engine, with a LAN fallback server.
-`references/provenance.md` is the ledger of that audit: twelve numbered entries on what changed and how the
+`references/provenance.md` is the ledger of that audit: fourteen numbered entries on what changed and how the
 templates verify it, what was kept deliberately, and what was designed here and has never run in production.
 That file is the rationale layer: read it before "simplifying" anything.
 
@@ -33,7 +33,7 @@ That file is the rationale layer: read it before "simplifying" anything.
 - `README.md`: the human-facing front door, in the section order of the skill standard: install,
   activation, the file table, the five non-negotiables, the *Not this* table, contributing.
 - `references/*.md`: one topic per file, loaded on demand. `state-machine.md` (vocabulary, reducer, the
-  12-test suite), `screens.md` (flow, screen contract, keyboard, timers, dictionary key tree),
+  13-test suite), `screens.md` (flow, screen contract, keyboard, timers, dictionary key tree),
   `api-contract.md` (routes, device auth, guard tables, the fetch wrapper), `booking-backend.md` (the
   `KioskBackend` seam, capacity transaction, stock, payments), `realtime-offline.md` (freshness signal,
   offline failover), `operations.md` (launch, gating, env vars, smoke test), `provenance.md` (the audit).
@@ -71,7 +71,7 @@ rest) are other skills, not dependencies. `island-mode-server` is referenced by 
 - **The odd-looking parts stay.** The data-only `REFRESH_SLOT`, the presence check before the key compare,
   the lock release on a 409, the same `notFound` for a missing and a foreign booking, the masked lookup
   fields: each is a ledger entry. Check `provenance.md` before simplifying one.
-- **The numbers that remain are load-bearing.** Twelve ledger entries; **12 `it()` tests in one
+- **The numbers that remain are load-bearing.** Fourteen ledger entries; **13 `it()` tests in one
   `describe('kioskReducer')` block**; 120 s inactivity, then the dim overlay and `RESET`; 30 s confirmation
   auto-reset; 15 min stock-lock TTL; 5 s health poll with a 3 s abort and 3 consecutive failures before
   flipping offline; 1 to 2 h stale-PENDING cleanup. The timers are verified on hardware and appear in
@@ -101,8 +101,10 @@ rest) are other skills, not dependencies. `island-mode-server` is referenced by 
   adds a row there or does not belong.
 - **Money is integer minor units end to end**, converted only at the payment provider boundary. No price
   ever crosses the wire inbound.
-- **Env var names** in `operations.md` are the canonical list (`KIOSK_API_KEY`, public base URL, payment
-  keys and webhook secret, LAN fallback URL); `api-contract.md` and `realtime-offline.md` use the same names.
+- **Env var names** in `operations.md` are the canonical list (`KIOSK_API_KEY`, `KIOSK_PUBLIC_BASE_URL`,
+  `KIOSK_LAN_FALLBACK_URL`, and the payment provider's own pair, `STRIPE_SECRET_KEY` and
+  `STRIPE_WEBHOOK_SECRET`); `api-contract.md`, `realtime-offline.md` and the quick start in `SKILL.md` use the
+  same names, and the `.env.example` rule there lists the same three.
 - **Framework claims.** Next.js App Router route handlers and React context are the shipped shape; backend,
   payment provider, realtime channel and design system are stated as substitutable, so keep a new template's
   framework-specific surface thin enough that the claim holds.

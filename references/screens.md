@@ -45,6 +45,7 @@ Offline state and feature flags can change *after* the user picked a method.
 Resolve at submit, never trust a stale selection:
 
 ```ts
+// in the summary screen's submit handler
 const onlineDisabled = isOffline || !stripeEnabled;   // host's flag seam
 const effectiveMethod: 'online' | 'counter' =
   onlineDisabled ? 'counter' : (paymentMethod ?? 'counter');
@@ -74,6 +75,7 @@ keyboard, no exceptions.
 Bottom-sheet with its own value buffer; commit on save, discard on cancel:
 
 ```tsx
+// file: components/kiosk/kiosk-keyboard.tsx
 'use client';
 
 import { useState } from 'react';
@@ -180,6 +182,7 @@ screen.
 ## Inactivity timer
 
 ```ts
+// file: lib/kiosk/use-inactivity-timer.ts
 import { useEffect, useRef } from 'react';
 
 export function useInactivityTimer({
@@ -226,6 +229,7 @@ On the kiosk root element, this is what makes a web page feel like an
 appliance, and none of it is optional on real hardware:
 
 ```tsx
+// in the kiosk root component, on its outermost element
 <div
   className="kiosk-root"
   style={{

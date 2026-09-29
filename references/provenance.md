@@ -125,6 +125,29 @@ never called. **Shipped:** rules in [screens.md](screens.md) and the operator
 table in [operations.md](operations.md); heartbeat is documented as an
 extension, not shipped code.
 
+### 13. A new slot kept the stations taken in it
+Found by the prompt-1 agent eval of 0.1.6, in this skill's own reducer, not
+in the audit. `SET_SLOT` replaced the slot and kept `selectedStations` as
+they were, and `SET_DATE` kept the previous date's slot. A customer who picked
+stations, went back and chose another slot carried a station already taken
+there onto the participants screen, which derives from context, and the
+submit came back 409.
+**Shipped:** `SET_DATE` drops the slot; `SET_SLOT` keeps only the stations
+free in the new slot, names aligned, and still navigates. The thirteenth
+reducer test covers both ([state-machine.md](state-machine.md)).
+
+### 14. A failed checkout kept its locks
+Found while verifying the templates for the same release. The create route's
+online path called `createCheckoutSession` after the booking and its stock
+locks existed, with no catch: a provider error escaped as an unhandled 500 and
+left the booking PENDING, holding its stations and locks until the cleanup
+jobs ran, and a retry with the same `sessionId` returned that booking without
+a `checkoutUrl`. The fifth hard rule, broken by its own template.
+**Shipped:** `failPendingBooking` on `KioskBackend` marks the booking FAILED,
+releases its locks and stations and clears its idempotency key; the route
+calls it and answers 502 ([api-contract.md](api-contract.md),
+[booking-backend.md](booking-backend.md)).
+
 ## Kept deliberately
 
 - **In-memory session state, no persistence**: an abandoned session must
@@ -149,6 +172,13 @@ extension, not shipped code.
 ## Added (designed in the skill, never run in the earlier implementation)
 
 - `REFRESH_SLOT` reconciliation semantics and the reducer test suite.
+- The `createKioskFetch` wrapper as code, and a destination path on every
+  template. The earlier implementation had a wrapper that two components
+  bypassed; this one is written here and has not run in production.
+- `checkKioskKey` compares SHA-256 digests with `timingSafeEqual` instead of
+  `===`; two agent evals of 0.1.6 hardened it this way on their own.
+- `failPendingBooking` as a named seam method, and the `.env.example` rule
+  with the variable names `KIOSK_PUBLIC_BASE_URL` and `KIOSK_LAN_FALLBACK_URL`.
 - Idempotency-key round trip.
 - Keyboard `mode` variants (email/code) and the dictionary-driven accent row
   (the earlier implementation had a single QWERTY layout plus one hardcoded

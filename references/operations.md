@@ -23,7 +23,9 @@ browser, and an auto-restart scheduled task for the morning. Chrome:
 `--kiosk`; ChromeOS: managed kiosk app.
 
 Hard rules for the URL: it **must carry `?locationId=`**, a kiosk that boots
-to the location selector after a power cut is a support call. And if the app
+to the location selector after a power cut is a support call; and it is served
+over HTTPS (or `localhost`), because `crypto.randomUUID`, which mints the
+`sessionId`, exists only in a secure context. And if the app
 is a PWA, check `manifest.json`'s `start_url`: in the earlier implementation
 it pointed at the website root, so "installing" the kiosk page installed the
 wrong app.
@@ -75,9 +77,15 @@ consciously skip them, not forget them.
 | Var | Required | Notes |
 |---|---|---|
 | `KIOSK_API_KEY` | strongly recommended | Missing = open API, a logged deployment decision ([api-contract.md](api-contract.md)) |
-| Public base URL | **yes** for online payment | No localhost default, the earlier implementation generated payment redirects to `http://localhost:3000` when unset |
-| Payment provider keys + webhook secret | for online payment | Counter-only kiosks run without them |
-| LAN fallback URL | if island mode | See [realtime-offline.md](realtime-offline.md) |
+| `KIOSK_PUBLIC_BASE_URL` | **yes** for online payment | No localhost default, the earlier implementation generated payment redirects to `http://localhost:3000` when unset |
+| `KIOSK_LAN_FALLBACK_URL` | if island mode | Unset = no LAN server, the degraded offline mode; see [realtime-offline.md](realtime-offline.md) |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | for online payment | The provider's own names; another provider brings its own pair. Counter-only kiosks run without them |
+
+All of them are read on the server at request time and none is needed to
+build. A tracked `.env.example` (un-ignore it if the host ignores `.env*`)
+lists `KIOSK_API_KEY`, `KIOSK_PUBLIC_BASE_URL` and `KIOSK_LAN_FALLBACK_URL`,
+all three with empty values, plus the payment pair, empty, when online payment
+is built. No value goes into a tracked file: not a demo key, not a URL.
 
 ## Smoke test after any deploy
 

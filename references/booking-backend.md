@@ -9,7 +9,12 @@ notes reflect the audited earlier implementation; the relational notes are a por
 
 ## The interface
 
+The host implements this interface over its own store and exports the instance
+as `backend` from `lib/kiosk/server/instance.ts`; the routes import it from
+there and call nothing else.
+
 ```ts
+// file: lib/kiosk/server/backend.ts
 export interface ExistingBooking { id: string; shortId: string; checkoutUrl?: string }
 
 export interface PricedLine {
@@ -77,6 +82,11 @@ export interface KioskBackend {
   releaseStockLocks(ids: string[]): Promise<void>;
 
   createBookingTransactionally(input: NewBooking): Promise<{ bookingId: string; shortId: string }>;
+
+  /** Mark a PENDING booking FAILED: release its stock locks, free its stations
+   *  and clear its idempotency key, so the customer's retry books afresh. The
+   *  create route, the webhook's failure path and the stale-PENDING job use it. */
+  failPendingBooking(bookingId: string): Promise<void>;
 
   createCheckoutSession(input: {
     amount: number; currency: string; bookingId: string; shortId: string; locale: string;
@@ -178,7 +188,8 @@ the kiosk shows the URL as a QR.
 
 The **webhook** completes the sale: on `checkout.session.completed`,
 confirm booking + confirm stock locks; on expiry/failure, fail the booking
-**and release its stock locks** (the earlier implementation released locks on failure for
+**and release its stock locks** with `failPendingBooking` (the earlier
+implementation released locks on failure for
 add-item payments but not for bookings, failed bookings held stock until the
 TTL sweep).
 
@@ -199,7 +210,7 @@ Webhook rules proven necessary:
 | Job | Cadence | Action |
 |---|---|---|
 | Expired stock-lock sweep | 5 min | release ACTIVE locks past TTL |
-| Stale PENDING bookings | hourly | fail bookings whose payment never completed. The earlier implementation used 25 h, far too long for a kiosk: a no-show QR holds stations all day. **1 to 2 h is right** (this tightening is a deviation from the earlier implementation; record disagreement if the venue wants otherwise). |
+| Stale PENDING bookings | hourly | `failPendingBooking` on bookings whose payment never completed. The earlier implementation used 25 h, far too long for a kiosk: a no-show QR holds stations all day. **1 to 2 h is right** (this tightening is a deviation from the earlier implementation; record disagreement if the venue wants otherwise). |
 
 ## Failure modes
 
@@ -209,6 +220,7 @@ Webhook rules proven necessary:
 | Not enough stock | 409 `INSUFFICIENT_STOCK` + item/requested/available | interpolated inline message |
 | Slot started while user dawdled | 400 `BOOKING_TIME_IN_PAST` | 1 s now-tick disables the slot first; error inline as backstop |
 | Promo invalid/expired/exhausted | 400 `PROMO_INVALID` at validate **and** at create | inline error at the promo field |
+| Checkout session cannot be created | 502 `checkout_failed`; `failPendingBooking` releases locks and stations | error inline on summary; counter payment still offered |
 | Payment webhook never arrives | stale-PENDING job fails the booking, releases locks | customer at the counter: staff look up the shortId and take payment manually |
 | Paid but capacity lost | booking flagged for refund, operator alerted | none |
 | Duplicate submit / lost response | idempotency key returns the original booking | at most one booking exists |

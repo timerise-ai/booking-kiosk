@@ -12,7 +12,7 @@ description: >
   mentions: kiosk mode, self-service kiosk, touch screen booking, walk-up
   terminal, on-screen keyboard, inputMode none, inactivity reset, counter
   payment, PENDING_COUNTER_PAYMENT, x-kiosk-api-key, SET_SLOT, REFRESH_SLOT,
-  PROMO_INVALID, stock lock. Carries the session reducer with its 12-test suite,
+  PROMO_INVALID, stock lock. Carries the session reducer with its 13-test suite,
   the screen contract and dictionary key tree, a server-priced idempotent API
   contract with guard tables, stock locks released on every failure path, and
   offline failover against a LAN server. Next.js App Router with React context;
@@ -103,15 +103,26 @@ from those two facts.
 
 ## Quick start
 
-1. Read [state-machine.md](references/state-machine.md); implement the
-   reducer and provider, run its test suite.
-2. Build screens against the contract in [screens.md](references/screens.md)
+1. Copy every template to the path on its first `// file:` line, renamed only
+   through the vocabulary table in [state-machine.md](references/state-machine.md).
+   Never rewrite, harden or restructure a template: a defect you find in one
+   goes in the handover, not into the code.
+2. Install vitest (`npm i -D vitest`; the package registry is not an external
+   service), set `"test": "vitest run"` and run the 13 reducer tests unchanged:
+   no other runner, no `expect` shim, no edited assertion.
+3. Build screens against the contract in [screens.md](references/screens.md)
    with the host's design system: keyboard, timers, touch hardening.
-3. Implement the routes from [api-contract.md](references/api-contract.md)
-   over the [booking-backend.md](references/booking-backend.md) seam.
-4. Wire freshness + offline per
-   [realtime-offline.md](references/realtime-offline.md).
-5. Deploy and smoke-test per [operations.md](references/operations.md).
+4. Implement the routes from [api-contract.md](references/api-contract.md) over
+   the [booking-backend.md](references/booking-backend.md) seam, send every kiosk
+   request through its one `createKioskFetch` wrapper, and wire freshness +
+   offline per [realtime-offline.md](references/realtime-offline.md).
+5. Configure per [operations.md](references/operations.md): a tracked
+   `.env.example` lists `KIOSK_API_KEY`, `KIOSK_PUBLIC_BASE_URL` and
+   `KIOSK_LAN_FALLBACK_URL`, all empty.
+6. Hand over: name the variables in `.env.example`, and tell the operator that
+   with `KIOSK_API_KEY` unset the kiosk API is open to anyone who can reach it,
+   that the boot URL must carry `?locationId=`, and which `KioskBackend` is
+   wired (a demo store must be replaced before real sales).
 
 ## Adaptation Contract
 
@@ -124,7 +135,7 @@ table is the full boundary of what the host supplies, and the rename table sits 
 | Domain entities | service/station/equipment/consumable + rename table | its vocabulary (court, kart, bay) |
 | Tenant scope | `locationId` in the kiosk URL, server-verified | its location/site model |
 | Device auth | `x-kiosk-api-key` contract | key management; optional per-device tokens |
-| Data access | `KioskBackend` interface; Firestore reference + SQL sketch | its ORM/SDK |
+| Data access | `KioskBackend` interface; Firestore reference + SQL sketch | its ORM/SDK, exported as `backend` from `lib/kiosk/server/instance.ts` |
 | Payments | counter status + checkout-session/webhook contract | Stripe or equivalent |
 | Realtime | `SubscribeFreshness` interface | Firestore/Supabase/SSE/polling |
 | Offline | `NetworkStatus` contract | LAN server (`island-mode-server`) or none |
@@ -137,12 +148,12 @@ table is the full boundary of what the host supplies, and the rename table sits 
 
 | Scenario | Trigger keywords | Reference |
 |---|---|---|
-| State, steps, reducer, session, tests | step, reducer, GO_BACK, REFRESH_SLOT, sessionId, reset | [state-machine.md](references/state-machine.md) |
+| State, steps, reducer, session, tests | step, reducer, GO_BACK, REFRESH_SLOT, sessionId, reset, vitest | [state-machine.md](references/state-machine.md) |
 | Screens, keyboard, timers, touch, i18n keys | on-screen keyboard, inactivity, countdown, QR, touch target, dictionary | [screens.md](references/screens.md) |
-| Routes, auth, validation, idempotency, errors | x-kiosk-api-key, 401, 409, idempotency, PROMO_INVALID, lookup, PII | [api-contract.md](references/api-contract.md) |
+| Routes, auth, validation, idempotency, errors | x-kiosk-api-key, 401, 409, idempotency, PROMO_INVALID, lookup, PII, createKioskFetch, fetch wrapper | [api-contract.md](references/api-contract.md) |
 | Capacity, stock, payments, webhook, crons | transaction, stock lock, TTL, PENDING_COUNTER_PAYMENT, webhook, refund | [booking-backend.md](references/booking-backend.md) |
 | Live refresh, caching, offline failover | lastBookingChangeAt, onSnapshot, s-maxage, offline banner, LAN, health poll | [realtime-offline.md](references/realtime-offline.md) |
-| Deploying, gating, operator surface | Edge --kiosk, assigned access, heartbeat, feature gate, smoke test | [operations.md](references/operations.md) |
+| Deploying, gating, operator surface | Edge --kiosk, assigned access, heartbeat, feature gate, env vars, .env.example, smoke test | [operations.md](references/operations.md) |
 | Why the templates differ from the earlier implementation | audit, ledger, kept deliberately, added | [provenance.md](references/provenance.md) |
 
 Part of the [Timerise Skills](https://github.com/timerise-ai/skills) index, which lists the sibling skills.

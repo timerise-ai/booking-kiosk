@@ -22,10 +22,18 @@ decision lives.
 One shared header, `x-kiosk-api-key`, checked like this:
 
 ```ts
+// file: lib/kiosk/server/auth.ts
+import { createHash, timingSafeEqual } from 'node:crypto';
+
+const digest = (s: string): Buffer => createHash('sha256').update(s).digest();
+
 export function checkKioskKey(req: Request): boolean {
   const configured = process.env.KIOSK_API_KEY;
   if (!configured) return true;               // explicit opt-out: LAN-only / demo
-  return req.headers.get('x-kiosk-api-key') === configured;
+  const sent = req.headers.get('x-kiosk-api-key');
+  if (!sent) return false;                    // presence first: configured key = required header
+  // Equal-length digests: a constant-time compare that leaks neither the key nor its length.
+  return timingSafeEqual(digest(sent), digest(configured));
 }
 ```
 
@@ -33,9 +41,9 @@ export function checkKioskKey(req: Request): boolean {
 `if (sent && configured && sent !== configured)`, i.e. only a *wrong* key was
 rejected and omitting the header bypassed auth entirely, on all four routes,
 while the kiosk client never sent the header at all. Configure the key, send
-it from a small `kioskFetch` wrapper (server-injected, not `NEXT_PUBLIC_`
-where you can avoid it), and treat the no-key mode as a conscious deployment
-decision, not a fallback.
+it from the one `kioskFetch` wrapper ([Client fetch rule](#client-fetch-rule)),
+server-injected, never `NEXT_PUBLIC_`, and treat the no-key mode as a conscious
+deployment decision, not a fallback.
 
 A shared device key is still a shared secret: it identifies "a kiosk", not
 *which* kiosk, and cannot be revoked per-device. Good enough for one venue's
@@ -49,6 +57,7 @@ Every response, success or failure, uses one shape. The earlier implementation
 mixed two and the client's error branch showed blank messages for one of them:
 
 ```ts
+// file: lib/kiosk/envelope.ts
 export type ApiOk<T> = { ok: true; data: T };
 export type ApiErr   = { ok: false; error: string; code?: string;
                          item?: string; requested?: number; available?: number };
@@ -79,6 +88,7 @@ interpolated into the message), `BOOKING_TIME_IN_PAST`, `PROMO_INVALID`,
 Request:
 
 ```ts
+// file: lib/kiosk/server/validation.ts
 export interface KioskCreateRequest {
   idempotencyKey: string;            // the client sessionId - see below
   serviceType: string;
@@ -202,9 +212,18 @@ which two terminals can share in the same millisecond.
 ### Route skeleton
 
 The full order of operations, with backend calls behind the `KioskBackend`
-seam ([booking-backend.md](booking-backend.md)):
+seam ([booking-backend.md](booking-backend.md)). `backend` is the host's
+implementation of that interface, exported from `lib/kiosk/server/instance.ts`;
+the `@/` alias is a default Next.js app's, so use the host's own if it differs.
 
 ```ts
+// file: app/api/kiosk/booking/create/route.ts
+import { err, ok } from '@/lib/kiosk/envelope';
+import { checkKioskKey } from '@/lib/kiosk/server/auth';
+import { isCapacityError } from '@/lib/kiosk/server/backend';
+import { backend } from '@/lib/kiosk/server/instance';
+import { parseCreateRequest } from '@/lib/kiosk/server/validation';
+
 export async function POST(request: Request) {
   if (!checkKioskKey(request)) return err(401, 'unauthorized');
   // Host seams: deployment payment-lock, module/feature gates go here.
@@ -276,11 +295,21 @@ export async function POST(request: Request) {
     return ok({ bookingId: created.bookingId, shortId: created.shortId }, 201);
   }
 
-  // Online: booking stays PENDING; the payment webhook confirms stock.
-  const checkout = await backend.createCheckoutSession({
-    amount: pricing.value.grandTotal - discount, currency: body.currency,
-    bookingId: created.bookingId, shortId: created.shortId, locale: body.locale,
-  });
+  // Online: booking stays PENDING; the payment webhook confirms stock. A
+  // checkout that cannot be created is a failure path after the locks exist:
+  // fail the booking, which releases its locks and stations. If that fails too,
+  // the TTL sweep and the stale-PENDING job are the net.
+  let checkout: { url: string };
+  try {
+    checkout = await backend.createCheckoutSession({
+      amount: pricing.value.grandTotal - discount, currency: body.currency,
+      bookingId: created.bookingId, shortId: created.shortId, locale: body.locale,
+    });
+  } catch (e) {
+    await backend.failPendingBooking(created.bookingId).catch(() => {});
+    console.error('kiosk checkout failed', e);
+    return err(502, 'checkout_failed');
+  }
   if (promoId) await backend.recordPromoUse(promoId).catch(() => {});
   return ok({ bookingId: created.bookingId, shortId: created.shortId,
               checkoutUrl: checkout.url }, 201);
@@ -295,9 +324,14 @@ Notes on that ordering:
 - The confirmation email is fire-and-forget by design (a kiosk user is
   standing there; don't make them wait on SendGrid), but with `.catch`, or
   every mail outage becomes an unhandled rejection.
-- The checkout redirect base URL must be a required env var. The earlier implementation
-  defaulted it to `http://localhost:3000`, so a missing env produced Stripe
-  sessions whose success URLs pointed at localhost.
+- The checkout redirect base URL, `KIOSK_PUBLIC_BASE_URL`, is required whenever
+  online payment is on. The earlier implementation defaulted it to
+  `http://localhost:3000`, so a missing env produced Stripe sessions whose
+  success URLs pointed at localhost.
+- A checkout session that cannot be created fails the booking through
+  `failPendingBooking` and answers 502; the summary shows the error inline and
+  counter payment stays available. Left PENDING, the booking would hold its
+  stations and its locks until the cleanup jobs ran.
 
 ## Lookup
 
@@ -343,8 +377,67 @@ metadata (the earlier implementation did the latter, clobbering any concurrent c
 ## Client fetch rule
 
 Every kiosk request goes through **one** fetch wrapper that (a) attaches the
-device key and (b) applies the offline base-URL failover
-([realtime-offline.md](realtime-offline.md)). The earlier implementation had two components
-calling bare `fetch`, exactly those two features (promo validation, booking
-lookup) broke whenever the kiosk was in offline failover while everything
-else kept working.
+device key, (b) applies the offline base-URL failover
+([realtime-offline.md](realtime-offline.md)) and (c) unwraps the error
+envelope. The earlier implementation had two components calling bare `fetch`,
+exactly those two features (promo validation, booking lookup) broke whenever the
+kiosk was in offline failover while everything else kept working.
+
+```ts
+// file: lib/kiosk/kiosk-fetch.ts
+import type { ApiErr, ApiOk } from './envelope';
+
+/** A failed envelope or an unreachable server. `code` is what a screen maps to
+ *  a dictionary key; `detail` carries item/requested/available. */
+export class KioskApiError extends Error {
+  constructor(
+    public status: number,
+    public error: string,
+    public code?: string,
+    public detail: Omit<ApiErr, 'ok' | 'error' | 'code'> = {},
+  ) { super(error); }
+}
+
+export interface KioskFetchConfig {
+  /** KIOSK_API_KEY, read on the server and passed down as a prop; null when unset. */
+  deviceKey: string | null;
+  /** NetworkStatus.apiBaseUrl at call time: '' online, the LAN URL when failed over. */
+  getApiBaseUrl: () => string;
+}
+
+export type KioskFetch = <T>(path: string, init?: RequestInit) => Promise<T>;
+
+export function createKioskFetch({ deviceKey, getApiBaseUrl }: KioskFetchConfig): KioskFetch {
+  return async function kioskFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const headers = new Headers(init.headers);
+    if (deviceKey) headers.set('x-kiosk-api-key', deviceKey);
+    if (init.body != null && !headers.has('content-type')) {
+      headers.set('content-type', 'application/json');
+    }
+    let res: Response;
+    try {
+      res = await fetch(`${getApiBaseUrl()}${path}`, { ...init, headers, cache: 'no-store' });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') throw e;  // superseded, not failed
+      throw new KioskApiError(0, 'network_error');
+    }
+    const body = (await res.json().catch(() => null)) as ApiOk<T> | ApiErr | null;
+    if (!body || typeof body !== 'object' || !('ok' in body)) {
+      throw new KioskApiError(res.status, 'invalid_response');
+    }
+    if (!body.ok) {
+      const { ok: _ok, error, code, ...detail } = body;
+      throw new KioskApiError(res.status, error, code, detail);
+    }
+    return body.data;
+  };
+}
+```
+
+The kiosk page is a server component: it reads `KIOSK_API_KEY` and
+`KIOSK_LAN_FALLBACK_URL` from `process.env` and passes them to the client
+provider as props, which builds the one `kioskFetch` with `createKioskFetch`
+and hands it to every hook and screen. Nothing else in the kiosk calls `fetch`,
+with one exception: the health poll is not a kiosk request but the probe that
+decides the base URL, so it always asks the cloud origin with plain `fetch` and
+its own 3 s abort.

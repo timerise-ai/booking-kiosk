@@ -14,6 +14,7 @@ clients over whatever realtime channel the host already has (Firestore
 polling of a tiny JSON route all satisfy the same interface):
 
 ```ts
+// file: lib/kiosk/freshness.ts
 /** Resolve to an unsubscribe fn; invoke cb with a monotonically increasing
  *  signal (epoch millis) whenever bookings changed at this location. */
 export type SubscribeFreshness =
@@ -117,20 +118,27 @@ kiosk -- /api/health poll (5 s, 3 s timeout) --> cloud
 Client-side contract:
 
 ```ts
-interface NetworkStatus {
+// file: lib/kiosk/network-status.ts
+export interface NetworkStatus {
   isOffline: boolean;
   apiBaseUrl: string;   // '' online; 'https://<lan-host>' when failed over
 }
 ```
 
 - The health poll needs its own **AbortController timeout (3 s)**, a hung
-  request must count as a failure, not block the loop.
+  request must count as a failure, not block the loop. It always asks the cloud
+  origin with plain `fetch`: it is the probe that sets `apiBaseUrl`, not a kiosk
+  request.
+- The LAN URL is `KIOSK_LAN_FALLBACK_URL`, read on the server and passed to the
+  client as a prop ([operations.md](operations.md)). Unset means no LAN server:
+  `apiBaseUrl` stays `''` and the degraded mode below applies.
 - Debounce the flip: 3 consecutive failures before going offline, so one
   dropped packet doesn't flash the banner.
 - LAN candidates are probed in order (configured URL to mDNS name to static
   fallback IP) and the last-known-good is cached.
 - **Every** kiosk request goes through the one fetch wrapper that applies
-  `apiBaseUrl` (and the device key, [api-contract.md](api-contract.md)).
+  `apiBaseUrl` (and the device key): `createKioskFetch` in
+  [api-contract.md](api-contract.md), given `() => status.apiBaseUrl`.
   The two components that bypassed it in the earlier implementation were exactly the two features
   that broke in island mode.
 

@@ -22,7 +22,14 @@ component names, strings.
 
 ## State shape
 
+The state shape, the actions, the reducer and the provider are one client module,
+`lib/kiosk/kiosk-context.tsx`, and the suite at the end of this file sits beside it. The blocks below
+are that file in order.
+
 ```ts
+// file: lib/kiosk/kiosk-context.tsx
+'use client';
+
 export interface AvailabilitySlot {
   slotId: string;
   time: string;                  // 'HH:mm' display label
@@ -206,9 +213,24 @@ export function kioskReducer(state: KioskState, action: KioskAction): KioskState
         cart: [],
       };
     case 'SET_DATE':
-      return { ...state, selectedDate: action.date, step: 'time-select' };
-    case 'SET_SLOT':
-      return { ...state, selectedSlot: action.slot, step: 'participants' };
+      // A slot belongs to one date, so a new date drops it; the stations stay
+      // for SET_SLOT to reconcile against the slot picked next.
+      return { ...state, selectedDate: action.date, selectedSlot: null, step: 'time-select' };
+    case 'SET_SLOT': {
+      // A user tap, so it navigates. Stations kept from an earlier slot survive
+      // only if they are free in this one, names aligned: the participants
+      // screen derives from selectedStations, so a station taken here would
+      // otherwise reach the submit and come back as a 409.
+      const takenHere = new Set(action.slot.takenStations);
+      const free = state.selectedStations.map((s) => !takenHere.has(s));
+      return {
+        ...state,
+        selectedSlot: action.slot,
+        selectedStations: state.selectedStations.filter((_, i) => free[i]),
+        participantNames: state.participantNames.filter((_, i) => free[i]),
+        step: 'participants',
+      };
+    }
     case 'REFRESH_SLOT': {
       if (!state.selectedSlot || state.selectedSlot.slotId !== action.slot.slotId) {
         return state;
@@ -296,8 +318,6 @@ export function kioskReducer(state: KioskState, action: KioskAction): KioskState
 ## Provider
 
 ```tsx
-'use client';
-
 import React, { createContext, useCallback, useContext, useReducer } from 'react';
 
 interface KioskContextValue {
@@ -348,10 +368,16 @@ export function useKiosk(): KioskContextValue {
 
 ## Reducer tests
 
-Run with the host's test runner; these are runner-agnostic apart from the
-imports. They encode the invariants the hardening added, keep them green.
+Thirteen tests in one `describe('kioskReducer')` block. Install vitest
+(`npm i -D vitest`; the package registry is not an external service, even where
+the task says none are reachable), set `"test": "vitest run"`, and run them
+unchanged; `bun test` runs the same file as it is. Never convert the suite to
+another runner, add an `expect` shim, or edit an assertion: a failing test is a
+defect in the adapted reducer, not in the test. The vocabulary rename is the one
+edit the file takes.
 
 ```ts
+// file: lib/kiosk/kiosk-context.test.ts
 import { describe, expect, it } from 'vitest';
 import {
   createInitialState, kioskReducer,
@@ -414,6 +440,20 @@ describe('kioskReducer', () => {
     const s = atStep('summary', { selectedSlot: slot() });
     const out = kioskReducer(s, { type: 'REFRESH_SLOT', slot: slot({ slotId: 'other' }) });
     expect(out).toBe(s);
+  });
+
+  it('SET_DATE and SET_SLOT never carry a stale selection forward', () => {
+    const s = atStep('time-select', {
+      selectedDate: '2026-09-01', selectedSlot: slot(),
+      selectedStations: ['A', 'B'], participantNames: [['Ana'], ['Ben']],
+    });
+    expect(kioskReducer(s, { type: 'SET_DATE', date: '2026-09-02' }).selectedSlot).toBeNull();
+    const out = kioskReducer(s, {
+      type: 'SET_SLOT', slot: slot({ slotId: 's2', takenStations: ['A'] }),
+    });
+    expect(out.step).toBe('participants');
+    expect(out.selectedStations).toEqual(['B']);
+    expect(out.participantNames).toEqual([['Ben']]);
   });
 
   it('participant seeding never clobbers an edited contact name', () => {
