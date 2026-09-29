@@ -18,10 +18,10 @@ throughout the skill; see the vocabulary table in
 
 ### 1. Device auth that a missing header bypassed
 All four kiosk routes checked `if (sent && configured && sent !== configured)`
-— only a *wrong* key was rejected; omitting the header passed, and the kiosk
+,  only a *wrong* key was rejected; omitting the header passed, and the kiosk
 client never sent one. Unauthenticated internet callers could create and
 mutate bookings and consume stock.
-**Shipped:** configured key ⇒ required header ([api-contract.md](api-contract.md)).
+**Shipped:** configured key means required header ([api-contract.md](api-contract.md)).
 
 ### 2. Client-priced Stripe charges
 Slot and consumable prices arrived in the request body and flowed into the
@@ -34,13 +34,13 @@ The confirmation screen rendered `QR: <first 50 chars of URL>...` as text
 (a placeholder comment said "use a QR library in production"); the main-flow
 customer had no way to pay online. Separately, three of the six text inputs
 set `inputMode="none"` (suppressing the native keyboard) without opening the
-on-screen keyboard — email/phone/promo entry and the whole booking-lookup
+on-screen keyboard, email/phone/promo entry and the whole booking-lookup
 screen were unusable on touch-only hardware.
 **Shipped:** QR requirement + keyboard-on-every-field rule ([screens.md](screens.md)).
 
 ### 4. Background refresh teleported the user
 The silent availability refresh re-dispatched `SET_SLOT`, whose reducer arm
-also navigates — a booking made by anyone else yanked a kiosk user from the
+also navigates, a booking made by anyone else yanked a kiosk user from the
 summary back to station selection, discarding progress. Selected stations
 also never reconciled against refreshed availability, so a stolen station
 could still be submitted.
@@ -67,7 +67,7 @@ double bookings.
 ([api-contract.md](api-contract.md)).
 
 ### 7. Promo failures were silent, then fatal
-An invalid/expired/wrong-location code was ignored — the customer silently
+An invalid/expired/wrong-location code was ignored, the customer silently
 paid full price. And usage-limit increments ran *after* booking commit
 without a catch, so hitting the limit returned a 500 for a booking that
 existed.
@@ -75,9 +75,9 @@ existed.
 recording is caught ([api-contract.md](api-contract.md)).
 
 ### 8. PII on an unauthenticated, unthrottled lookup
-`GET …/lookup?shortId=` returned full name, email, phone and participants
+`GET .../lookup?shortId=` returned full name, email, phone and participants
 for any guessable 8-char code (31-char alphabet), min query length 3, with
-no rate limit — an enumeration target.
+no rate limit, an enumeration target.
 **Shipped:** rate limit + masked contact fields ([api-contract.md](api-contract.md)).
 
 ### 9. Edit/add-items trusted and raced
@@ -88,13 +88,13 @@ siblings had. Add-items had no cancelled-booking guard, mutated pricing in a
 read-modify-write outside a transaction (concurrent adds lost increments),
 appended lines via a set-union that deduplicated identical purchases while
 still charging for both, and its webhook wrote back absolute totals computed
-minutes earlier — with no event-id dedupe on redelivery.
+minutes earlier, with no event-id dedupe on redelivery.
 **Shipped:** the guard table and delta-in-transaction rules
 ([api-contract.md](api-contract.md), [booking-backend.md](booking-backend.md)).
 
 ### 10. Unbounded transactional read
 The capacity re-check read *every* PENDING/CONFIRMED booking for the
-location — no date filter, no limit — inside every create transaction. Grows
+location, no date filter, no limit, inside every create transaction. Grows
 forever; eventually every sale times out.
 **Shipped:** date-overlap filter as part of the transaction spec
 ([booking-backend.md](booking-backend.md)).
@@ -127,22 +127,22 @@ extension, not shipped code.
 
 ## Kept deliberately
 
-- **In-memory session state, no persistence** — an abandoned session must
+- **In-memory session state, no persistence**: an abandoned session must
   not show one customer's data to the next. Do not add localStorage.
-- **Inline errors, never toasts** — arm's-length single-focus UI.
-- **Fire-and-forget confirmation email** (now with `.catch`) — the customer
+- **Inline errors, never toasts**: arm's-length single-focus UI.
+- **Fire-and-forget confirmation email** (now with `.catch`): the customer
   is standing there; mail latency must not block the confirmation screen.
-- **Counter bookings confirm immediately** (`PENDING_COUNTER_PAYMENT`) —
+- **Counter bookings confirm immediately** (`PENDING_COUNTER_PAYMENT`):
   the no-payment-integration path is the kiosk's resilience story.
-- **Per-item stock-lock transactions** rather than one giant transaction —
+- **Per-item stock-lock transactions** rather than one giant transaction:
   locks are independent; the booking create is the single serialization
   point. Proven under real concurrency.
-- **A shared device key, not per-device tokens** — right-sized for one
+- **A shared device key, not per-device tokens**: right-sized for one
   venue's LAN; the upgrade path is documented in
   [api-contract.md](api-contract.md).
-- **Prop-drilled dictionary slices, no client i18n runtime** — one page,
+- **Prop-drilled dictionary slices, no client i18n runtime**: one page,
   server-resolved locale; a runtime would be dead weight.
-- **Hidden scrollbars, dark high-contrast chrome, hand-rolled modal** —
+- **Hidden scrollbars, dark high-contrast chrome, hand-rolled modal**:
   kiosk-appropriate choices, kept as intent with accessibility requirements
   attached.
 

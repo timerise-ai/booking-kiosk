@@ -1,11 +1,11 @@
 # The booking backend seam
 
-The kiosk does not own bookings — it is one sales channel into a booking
+The kiosk does not own bookings: it is one sales channel into a booking
 system shared with a website and staff walk-ins. This file defines the
 contract the kiosk routes need from that system, the concurrency patterns
 that make it safe, and the failure modes proven in production. The Firestore
 notes reflect the audited earlier implementation; the relational notes are a port sketch,
-**designed, not production-proven** — treat accordingly.
+**designed, not production-proven**; treat accordingly.
 
 ## The interface
 
@@ -59,7 +59,7 @@ export interface KioskBackend {
     | { ok: true; value: { slotsTotal: number; consumablesTotal: number;
                            subtotal: number; grandTotal: number;
                            lines: PricedLine[] } }
-    | { ok: false; error: string }        // unknown itemId, currency not priced…
+    | { ok: false; error: string }        // unknown itemId, currency not priced...
   >;
 
   validatePromo(code: string, ctx: { currency: string; locationId: string; subtotal: number }):
@@ -89,7 +89,7 @@ export interface KioskBackend {
 ```
 
 Money is **integer minor units** end to end (grosze, cents). Convert to the
-payment provider's expectations only at that boundary — zero-decimal
+payment provider's expectations only at that boundary, zero-decimal
 currencies (ISK, JPY) divide by 100 exactly there and nowhere else.
 
 ## Capacity: the one transaction that matters
@@ -102,13 +102,13 @@ the same window. The create path **re-checks inside the write transaction**:
 transaction {
   existing = bookings WHERE locationId AND serviceType
                        AND status IN (PENDING, CONFIRMED)
-                       AND window overlaps requested window        ← filter, see below
+                       AND window overlaps requested window        <- filter, see below
   for each requested window:
-    reject if a requested station is already taken        → STATION_TAKEN
-    reject duplicate stations within the request itself   → SLOT_UNAVAILABLE
-    reject if free-station count < requested count        → NO_STATIONS
+    reject if a requested station is already taken        -> STATION_TAKEN
+    reject duplicate stations within the request itself   -> SLOT_UNAVAILABLE
+    reject if free-station count < requested count        -> NO_STATIONS
   insert booking
-  bump location.lastBookingChangeAt                       ← the realtime signal
+  bump location.lastBookingChangeAt                       <- the realtime signal
 }
 ```
 
@@ -120,16 +120,16 @@ Two hard-won details:
   caught. Whatever your labels, define one canonical station key and compare
   on that.
 - **Filter the transactional read by date.** The earlier implementation read *every*
-  PENDING/CONFIRMED booking for the location — no date filter, no limit —
+  PENDING/CONFIRMED booking for the location, with no date filter and no limit,
   inside every create transaction. That is unbounded growth: a successful
   venue eventually times out every sale. Query only bookings whose window can
   overlap the requested day.
 
-On success, bump a `lastBookingChangeAt` timestamp on the location — this
+On success, bump a `lastBookingChangeAt` timestamp on the location, this
 single field drives every terminal's silent availability refresh
 ([realtime-offline.md](realtime-offline.md)).
 
-`shortId` — the human-facing code on the confirmation screen — is 8 chars
+`shortId`, the human-facing code on the confirmation screen, is 8 chars
 from an unambiguous alphabet (no 0/O, 1/I). Allocate it inside the create
 transaction or with a unique constraint; the earlier implementation checked uniqueness with a
 separate pre-read, leaving a collision window.
@@ -139,17 +139,17 @@ separate pre-read, leaving a collision window.
 | Model | For | Reserve | Confirm | Availability |
 |---|---|---|---|---|
 | **Consumable** | balls, tokens, credits | increment `reservedStock` | decrement `stockLevel`, write an audit log entry | `stockLevel - reservedStock` |
-| **Time-bound** | equipment: rentable items that come back | create a lock with the slot window | mark lock CONFIRMED; `stockLevel` untouched (it is fleet size) | fleet size − locks overlapping the window |
+| **Time-bound** | equipment: rentable items that come back | create a lock with the slot window | mark lock CONFIRMED; `stockLevel` untouched (it is fleet size) | fleet size minus locks overlapping the window |
 
-Lifecycle: `lockStock` at submit (status ACTIVE, **TTL ~15 min**) →
-`confirmStockLocks` on counter-confirm or payment webhook → a sweep job
+Lifecycle: `lockStock` at submit (status ACTIVE, **TTL ~15 min**), then
+`confirmStockLocks` on counter-confirm or payment webhook, while a sweep job
 releases expired ACTIVE locks (every 5 min in the earlier implementation). The TTL is what makes
 abandoned kiosk sessions self-heal; the release-on-failure in the create
 route ([api-contract.md](api-contract.md)) is what stops a capacity conflict
 from freezing stock for the whole TTL anyway.
 
 Confirm failures must not be silent. The earlier implementation wrapped each lock confirm in
-a per-lock catch that only logged — a failed confirm meant stock never
+a per-lock catch that only logged, a failed confirm meant stock never
 decremented while the booking said CONFIRMED, and nobody was told. Fail loud:
 retry once, then flag the booking for operator attention
 ([operations.md](operations.md)).
@@ -176,10 +176,10 @@ Booking is created `PENDING`; stock locks stay ACTIVE; a Checkout session is
 created with metadata `{ type: 'BOOKING', bookingDocId, shortId, source: 'kiosk' }`;
 the kiosk shows the URL as a QR.
 
-The **webhook** completes the sale: on `checkout.session.completed` →
-confirm booking + confirm stock locks; on expiry/failure → fail the booking
+The **webhook** completes the sale: on `checkout.session.completed`,
+confirm booking + confirm stock locks; on expiry/failure, fail the booking
 **and release its stock locks** (the earlier implementation released locks on failure for
-add-item payments but not for bookings — failed bookings held stock until the
+add-item payments but not for bookings, failed bookings held stock until the
 TTL sweep).
 
 Webhook rules proven necessary:
@@ -188,7 +188,7 @@ Webhook rules proven necessary:
   confirms and re-wrote totals on redelivery. Store processed event ids.
 - **Deltas, not absolutes.** Apply changes by re-reading the booking in a
   transaction. Never stash computed totals in session metadata and write
-  them back later — minutes may have passed.
+  them back later, minutes may have passed.
 - **Payment succeeded but capacity is gone** (someone else confirmed in the
   gap): do not un-charge silently. Flag the booking
   (`payment.requiresRefund = true`) and surface it to operators; refunds are
@@ -199,7 +199,7 @@ Webhook rules proven necessary:
 | Job | Cadence | Action |
 |---|---|---|
 | Expired stock-lock sweep | 5 min | release ACTIVE locks past TTL |
-| Stale PENDING bookings | hourly | fail bookings whose payment never completed. Source used 25 h — far too long for a kiosk: a no-show QR holds stations all day. **1–2 h is right** (this tightening is a deviation from the earlier implementation; record disagreement if the venue wants otherwise). |
+| Stale PENDING bookings | hourly | fail bookings whose payment never completed. The earlier implementation used 25 h, far too long for a kiosk: a no-show QR holds stations all day. **1 to 2 h is right** (this tightening is a deviation from the earlier implementation; record disagreement if the venue wants otherwise). |
 
 ## Failure modes
 
@@ -210,9 +210,9 @@ Webhook rules proven necessary:
 | Slot started while user dawdled | 400 `BOOKING_TIME_IN_PAST` | 1 s now-tick disables the slot first; error inline as backstop |
 | Promo invalid/expired/exhausted | 400 `PROMO_INVALID` at validate **and** at create | inline error at the promo field |
 | Payment webhook never arrives | stale-PENDING job fails the booking, releases locks | customer at the counter: staff look up the shortId and take payment manually |
-| Paid but capacity lost | booking flagged for refund, operator alerted | — |
+| Paid but capacity lost | booking flagged for refund, operator alerted | none |
 | Duplicate submit / lost response | idempotency key returns the original booking | at most one booking exists |
-| Catalog fetch fails on kiosk | — | the submit button must say *why* it is disabled; the earlier implementation greyed it silently when pricing failed to load |
+| Catalog fetch fails on kiosk | none | the submit button must say *why* it is disabled; the earlier implementation greyed it silently when pricing failed to load |
 
 ## Firestore reference (as audited in the earlier implementation)
 
@@ -225,12 +225,12 @@ is its own transaction (acceptable: locks are per-item independent; the
 booking tx is the serialization point). Add a composite index for the
 date-filtered capacity read and an index on the idempotency-key field.
 
-## Relational sketch (port target — not production-proven)
+## Relational sketch (a design, not production-proven)
 
-`bookings`, `booking_slots` (one row per station×window with a unique
-constraint on `(location_id, station_key, starts_at)` — the constraint *is*
+`bookings`, `booking_slots` (one row per station and window with a unique
+constraint on `(location_id, station_key, starts_at)`, the constraint *is*
 the capacity check for station collisions; count-based capacity still needs
-`SELECT … FOR UPDATE` on the window), `stock_locks` with `expires_at`,
+`SELECT ... FOR UPDATE` on the window), `stock_locks` with `expires_at`,
 `idempotency_key UNIQUE` on bookings. Everything in one transaction: lock
-rows → insert → notify (`NOTIFY`/`LISTEN` or the host's realtime layer
+rows to insert to notify (`NOTIFY`/`LISTEN` or the host's realtime layer
 replaces `lastBookingChangeAt`).

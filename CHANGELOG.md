@@ -54,7 +54,7 @@ unchanged from 0.1.1.
   heading, and a *Not this* table points neighbouring problems to the right skill or tool.
 - README: the skill's origin is reworded. It was written by the engineers who built the
   module it describes; the reference point for `provenance.md` is the earlier
-  implementation rather than "the source"; the index is called Timerise Skills.
+  implementation; the index is called Timerise Skills.
 - README: every em-dash, arrow and en-dash in the prose is rewritten as a comma, colon,
   full stop or conjunction.
 
@@ -63,7 +63,7 @@ unchanged from 0.1.1.
 ### Added
 - `README.md` describing the skill, its install commands for Claude Code, Codex
   CLI and Gemini CLI, the contents of each reference file, and the five
-  non-negotiables — the hard rules from `SKILL.md`, plus the `SET_SLOT` /
+  non-negotiables: the hard rules from `SKILL.md`, plus the `SET_SLOT` /
   `REFRESH_SLOT` distinction that is the module's signature. The seam contract
   points at the Adaptation Contract table in `SKILL.md`, since this skill keeps
   it there rather than in a `references/adaptation.md`.
@@ -74,56 +74,54 @@ unchanged from 0.1.1.
 - `CLAUDE.md` records the new packaging: the tree lists `README.md` and
   `LICENSE`, the release note says to keep them mirrored with the siblings and
   to bump the release number the README states, and the reference-index rule
-  now counts three places to update — the *Quick start* list and *Reference
+  now counts three places to update: the *Quick start* list and *Reference
   directory* table in `SKILL.md` plus the *What's inside* table in `README.md`.
 
 ## [0.1.0] - 2026-09-01
 
-Initial release of the booking-kiosk skill, extracted from a production
-venue-booking management system — Next.js 16 App Router, React 19, Firestore,
-Stripe — where the kiosk ran as one of five surfaces sharing a booking engine
-at a multi-location venue. It teaches an agent to build a self-service
+Initial release of the booking-kiosk skill, written from a venue kiosk that ran
+as one of several surfaces sharing a booking engine. It teaches an agent to build a self-service
 touchscreen booking terminal in someone else's codebase: a seven-step walk-up
 flow with an on-screen keyboard, inactivity auto-reset, pay-at-counter or
 pay-by-QR, live availability refresh, and a find-my-booking edit flow. The
-templates are the hardened version of the source, not a copy of it.
+templates are the audited design, with the record of the audit in `provenance.md`.
 
 ### Added
 - `SKILL.md` entry point: the frontmatter trigger, when to use and when not to,
   the architecture diagram, six critical facts, five hard rules, a five-step
   quick start, the Adaptation Contract table that bounds what a host must
   supply, and the reference directory table.
-- `references/state-machine.md` — the canonical vocabulary and rename table,
+- `references/state-machine.md`: the canonical vocabulary and rename table,
   state shape, actions, the reducer and provider, the rules an orchestrator
   must follow, and an inline suite of 12 reducer tests. Carries the module's
   signature distinction: `SET_SLOT` navigates, `REFRESH_SLOT` never does.
-- `references/screens.md` — the seven-step flow plus the two side-flow steps,
+- `references/screens.md`: the seven-step flow plus the two side-flow steps,
   the per-screen contract, payment-method resolution, the on-screen keyboard,
   the inactivity timer, touch hardening, modal semantics, and the canonical
   dictionary key tree in which every key is required.
-- `references/api-contract.md` — the four kiosk routes, device auth, the single
+- `references/api-contract.md`: the four kiosk routes, device auth, the single
   error envelope, create / lookup / add-items / edit with their guard tables,
   and the one-fetch-wrapper client rule.
-- `references/booking-backend.md` — the `KioskBackend` interface as the only
+- `references/booking-backend.md`: the `KioskBackend` interface as the only
   data seam, the capacity transaction, the two stock models, payments and
-  failure modes, a Firestore reference implementation as audited in the source,
-  and a relational sketch as a port target.
-- `references/realtime-offline.md` — the `lastBookingChangeAt` freshness
+  failure modes, a Firestore reference implementation as audited in the earlier
+  implementation, and a relational sketch as a design.
+- `references/realtime-offline.md`: the `lastBookingChangeAt` freshness
   signal, availability fetching and caching, offline failover against a LAN
   server, and what deliberately stays out.
-- `references/operations.md` — launching the kiosk, access gating, the operator
+- `references/operations.md`: launching the kiosk, access gating, the operator
   surface, the canonical environment variable list, and a post-deploy smoke
   test.
-- `references/provenance.md` — the audit ledger: 12 numbered source defects
+- `references/provenance.md`: the audit ledger: 12 numbered defects
   fixed in the templates, 8 choices kept deliberately with the reason each is
   safe, and 7 additions designed here but never run in production.
 - `CLAUDE.md` with the repository's editing rules and content invariants, and
   `.gitignore`.
 
 ### Fixed
-Twelve defect classes from the source module, each documented in
+Twelve defect classes from the earlier implementation, each documented in
 `references/provenance.md`. The five that became hard rules:
-- All four kiosk routes rejected only a *wrong* device key — omitting the
+- All four kiosk routes rejected only a *wrong* device key: omitting the
   header passed, and the client never sent one, so unauthenticated internet
   callers could create and mutate bookings and consume stock. Now a configured
   key means a missing header is a 401.
@@ -141,11 +139,11 @@ Twelve defect classes from the source module, each documented in
   acquiring new ones, and the payment webhook released locks for failed
   add-item payments but not for failed bookings. Locks are now released on
   every failure path after acquisition.
-- Every kiosk request goes through one fetch wrapper; the source's bare
+- Every kiosk request goes through one fetch wrapper; the earlier implementation's bare
   `fetch` calls broke silently under offline failover.
 
 Also fixed: the client `sessionId` is now a server-checked idempotency key
-(the source generated one nobody read and minted lock keys from `Date.now()`,
+(the earlier implementation generated one nobody read and minted lock keys from `Date.now()`,
 which collides across terminals); an invalid promo is a 400 before any write
 instead of a silent full-price charge, and post-commit usage recording no
 longer 500s on a booking that already exists; the unauthenticated lookup is
@@ -157,5 +155,5 @@ CONFIRMED booking for the location; online payment is a real QR rather than a
 truncated URL rendered as text, and every text input opens the on-screen
 keyboard rather than suppressing the native one with nothing in its place.
 Plus a drawer of smaller correctness fixes and the operator and accessibility
-gaps — heartbeat, dialog semantics, focus management, touch targets, contrast,
-and dead dictionary keys — listed as entries 11 and 12 in the ledger.
+gaps (heartbeat, dialog semantics, focus management, touch targets, contrast,
+and dead dictionary keys), listed as entries 11 and 12 in the ledger.

@@ -7,8 +7,8 @@ library.
 
 ## The freshness signal
 
-One number per location — `lastBookingChangeAt`, bumped inside every booking
-write transaction ([booking-backend.md](booking-backend.md)) — pushed to
+One number per location, `lastBookingChangeAt`, bumped inside every booking
+write transaction ([booking-backend.md](booking-backend.md)), pushed to
 clients over whatever realtime channel the host already has (Firestore
 `onSnapshot` in the earlier implementation; Supabase Realtime, an SSE endpoint, or 15 s
 polling of a tiny JSON route all satisfy the same interface):
@@ -20,9 +20,9 @@ export type SubscribeFreshness =
   (locationId: string, cb: (signal: number) => void) => () => void;
 ```
 
-Consumers react by **silently refetching** day + month availability — no
-loading spinners, no error states for a background refresh — and dispatching
-`REFRESH_SLOT` (never `SET_SLOT` — see [state-machine.md](state-machine.md))
+Consumers react by **silently refetching** day + month availability, no
+loading spinners, no error states for a background refresh, and dispatching
+`REFRESH_SLOT` (never `SET_SLOT`, see [state-machine.md](state-machine.md))
 with the fresh slot.
 
 Share one subscription per location across all consumers with a refcounted
@@ -75,8 +75,8 @@ endpoint. Rules that came from production behavior:
   stale-while-revalidate=300` on the slots route keeps a bank of kiosks and
   the website from hammering the backend, while the freshness signal punches
   through staleness the moment anything changes (server-side, revalidate the
-  slots cache tag inside the booking write path — *after* commit).
-- **One automatic retry** on month-fetch failure, after 2 s — kiosk networks
+  slots cache tag inside the booking write path, *after* commit).
+- **One automatic retry** on month-fetch failure, after 2 s, kiosk networks
   hiccup. Store the timer and clear it on unmount/param change; the earlier implementation's
   fire-and-forget retry outlived the component and set state after unmount.
 - **Abort superseded requests.** Pricing, equipment and availability effects
@@ -92,10 +92,10 @@ Stamp `lastUpdatedAt = Date.now()` on each successful day fetch and feed it
 to the live indicator:
 
 ```
-● live · 12s ago        ← pulsing dot; age from a 1 s now-tick
+* live, 12s ago        <- pulsing dot; age from a 1 s now-tick
 ```
 
-The indicator is trust UI — it tells the customer (and staff walking past)
+The indicator is trust UI, it tells the customer (and staff walking past)
 that the station grid is current. Show it on time-select and participants, the
 two screens where a stale grid causes a 409 at submit.
 
@@ -103,15 +103,15 @@ two screens where a stale grid causes a 409 at submit.
 
 The kiosk's job during an internet outage is to **keep selling for counter
 payment**. The architecture (proven in the earlier implementation's ecosystem, and the
-subject of the sibling `island-mode-server` skill — use it if the venue needs
+subject of the sibling `island-mode-server` skill, use it if the venue needs
 the on-prem server itself):
 
 ```
-kiosk ── /api/health poll (5 s, 3 s timeout) ──► cloud
-  │ 3 consecutive failures → isOffline = true
-  ├─► all API calls re-based onto the LAN fallback server URL
-  ├─► yellow offline banner; online payment hidden; method forced to counter
-  └─► recovery: same poll succeeds → base URL back to '' → banner gone
+kiosk -- /api/health poll (5 s, 3 s timeout) --> cloud
+  | 3 consecutive failures -> isOffline = true
+  +-> all API calls re-based onto the LAN fallback server URL
+  +-> yellow offline banner; online payment hidden; method forced to counter
+  +-> recovery: same poll succeeds -> base URL back to '' -> banner gone
 ```
 
 Client-side contract:
@@ -123,18 +123,18 @@ interface NetworkStatus {
 }
 ```
 
-- The health poll needs its own **AbortController timeout (3 s)** — a hung
+- The health poll needs its own **AbortController timeout (3 s)**, a hung
   request must count as a failure, not block the loop.
 - Debounce the flip: 3 consecutive failures before going offline, so one
   dropped packet doesn't flash the banner.
-- LAN candidates are probed in order (configured URL → mDNS name → static
+- LAN candidates are probed in order (configured URL to mDNS name to static
   fallback IP) and the last-known-good is cached.
 - **Every** kiosk request goes through the one fetch wrapper that applies
-  `apiBaseUrl` (and the device key — [api-contract.md](api-contract.md)).
+  `apiBaseUrl` (and the device key, [api-contract.md](api-contract.md)).
   The two components that bypassed it in the earlier implementation were exactly the two features
   that broke in island mode.
 
-The LAN server must implement the same routes with the same contracts —
+The LAN server must implement the same routes with the same contracts,
 including capacity checks and idempotency. The earlier implementation's LAN mirror silently
 ignored promo codes, participants and location ids, did no capacity check,
 and minted a different shortId format; offline bookings were second-class in
@@ -148,7 +148,7 @@ paper. Do not fake success offline.
 
 ## What stays out
 
-- No client cache layers (SWR/React Query) for kiosk data — the freshness
+- No client cache layers (SWR/React Query) for kiosk data, the freshness
   signal plus CDN caching already give the right staleness envelope, and a
   second cache is a second thing to invalidate.
 - No optimistic booking UI. A kiosk must never show "confirmed" before the

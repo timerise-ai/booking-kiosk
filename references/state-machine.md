@@ -1,7 +1,7 @@
 # The kiosk state machine
 
 One React context holding a pure reducer. Every screen transition is a reducer
-action, not router navigation — the kiosk is a single URL and the browser back
+action, not router navigation, the kiosk is a single URL and the browser back
 button must never be part of the flow. The reducer is the only piece of the
 module complex enough to deserve tests, and it has them (end of this file).
 
@@ -9,7 +9,7 @@ module complex enough to deserve tests, and it has them (end of this file).
 
 | Canonical | What it means | Rename in your host to |
 |---|---|---|
-| `serviceType` | the bookable activity variant | court type, room, activity… |
+| `serviceType` | the bookable activity variant | court type, room, activity... |
 | `station` | one bookable unit of capacity within a slot | bay, court, seat, table |
 | `AvailabilitySlot` | time slot with per-station availability | same concept |
 | `equipment` | time-bound rentable items that come back | rackets, karts, gear |
@@ -17,7 +17,7 @@ module complex enough to deserve tests, and it has them (end of this file).
 | `compatibilityKey` | links a consumable to the equipment it fits | size, gauge, type |
 | `participants` | people occupying a station | players, guests |
 
-Do the rename once, before generating, and apply it everywhere — types, routes,
+Do the rename once, before generating, and apply it everywhere, types, routes,
 component names, strings.
 
 ## State shape
@@ -30,7 +30,7 @@ export interface AvailabilitySlot {
   dateTimeTo: string;
   available: number;             // stations still free in this slot
   takenStations: string[];       // station labels already booked
-  price?: number;                // minor units; display only — server re-prices
+  price?: number;                // minor units; display only - server re-prices
 }
 
 export interface EquipmentSelection {
@@ -94,7 +94,7 @@ export interface LookupBooking {
 }
 
 export type KioskStep =
-  | 'service-select'     // entry / attract screen — also hosts "I have a booking"
+  | 'service-select'     // entry / attract screen - also hosts "I have a booking"
   | 'date-select'
   | 'time-select'
   | 'participants'       // pick stations, enter names via on-screen keyboard
@@ -105,7 +105,7 @@ export type KioskStep =
   | 'booking-edit';      // side flow: add consumables / add a slot to it
 
 export interface KioskState {
-  sessionId: string;             // idempotency key — sent on create, see api-contract.md
+  sessionId: string;             // idempotency key - sent on create, see api-contract.md
   step: KioskStep;
   serviceType: string | null;
   selectedDate: string | null;   // 'YYYY-MM-DD'
@@ -129,8 +129,8 @@ export interface KioskState {
 export type KioskAction =
   | { type: 'SET_SERVICE'; serviceType: string }
   | { type: 'SET_DATE'; date: string }
-  | { type: 'SET_SLOT'; slot: AvailabilitySlot }        // user tap — navigates
-  | { type: 'REFRESH_SLOT'; slot: AvailabilitySlot }    // background refresh — never navigates
+  | { type: 'SET_SLOT'; slot: AvailabilitySlot }        // user tap - navigates
+  | { type: 'REFRESH_SLOT'; slot: AvailabilitySlot }    // background refresh - never navigates
   | { type: 'SET_PARTICIPANTS'; stations: string[]; participantNames: string[][] }
   | { type: 'TOGGLE_EQUIPMENT'; equipment: EquipmentSelection }
   | { type: 'SET_EQUIPMENT'; equipment: EquipmentSelection[] }
@@ -164,7 +164,7 @@ const STEP_ORDER: KioskStep[] = [
 
 function generateSessionId(): string {
   // Doubles as the create-request idempotency key, so it must be unique per
-  // flow attempt — not per millisecond. RESET regenerates it.
+  // flow attempt - not per millisecond. RESET regenerates it.
   return `kiosk_${crypto.randomUUID()}`;
 }
 
@@ -191,7 +191,7 @@ export function createInitialState(): KioskState {
 export function kioskReducer(state: KioskState, action: KioskAction): KioskState {
   switch (action.type) {
     case 'SET_SERVICE':
-      // Clear everything downstream — selections made for one service type are
+      // Clear everything downstream - selections made for one service type are
       // likely invalid for another. The empty cart is re-seeded by the pricing
       // hook when it sees cart.length === 0.
       return {
@@ -215,7 +215,7 @@ export function kioskReducer(state: KioskState, action: KioskAction): KioskState
       }
       // Stations the user picked may have been taken by another channel while
       // they browsed. Drop them here so the submit payload can never contain a
-      // station the server will reject — and keep participantNames aligned by
+      // station the server will reject - and keep participantNames aligned by
       // filtering both arrays on the same predicate.
       const takenNow = new Set(action.slot.takenStations);
       const keep = state.selectedStations.map((s) => !takenNow.has(s));
@@ -341,7 +341,7 @@ export function useKiosk(): KioskContextValue {
   never read it, while the server minted timestamp keys that collide across
   terminals.
 - **Session lifecycle timers** (values proven in production): inactivity
-  timeout 120 s → dim overlay; any touch wakes; timeout on any step except the
+  timeout 120 s to dim overlay; any touch wakes; timeout on any step except the
   entry and side-flow steps also dispatches `RESET`. Confirmation screen
   auto-resets after 30 s with a visible countdown. See
   [screens.md](screens.md) for the components.
@@ -349,7 +349,7 @@ export function useKiosk(): KioskContextValue {
 ## Reducer tests
 
 Run with the host's test runner; these are runner-agnostic apart from the
-imports. They encode the invariants the hardening added — keep them green.
+imports. They encode the invariants the hardening added, keep them green.
 
 ```ts
 import { describe, expect, it } from 'vitest';

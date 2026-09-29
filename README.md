@@ -84,6 +84,12 @@ the skill stays cheap in context until a topic is actually needed.
 | `references/realtime-offline.md` | The freshness signal, availability fetching and caching, offline failover against a LAN server, and what stays out |
 | `references/operations.md` | Launching the kiosk, access gating, the operator surface, environment variables, and the post-deploy smoke test |
 | `references/provenance.md` | The engineering ledger: what the audit of the earlier implementation changed and how the templates verify it, what was kept deliberately, and what is new in the skill |
+| `README.md` | This file: install, activation, contents, the non-negotiables, where to go instead, contributing |
+| `CHANGELOG.md` | Keep a Changelog, one section per release, newest first |
+| `CLAUDE.md` | What the repository is and its editing conventions, for an agent editing the skill itself |
+| `LICENSE` | MIT |
+| `evals/` | The prompts an operator types after installing (`prompts.md`) and one file per agent eval: the skill installed into an empty Next.js app, one prompt, no help, then type-checked, built and tested |
+| `.github/workflows/agent-eval.yml` | The caller of the index's reusable eval workflow, run on every published release and on a maintainer's dispatch; the same in every skill |
 
 The seam contract lives in the **Adaptation Contract** table in `SKILL.md`: it bounds what the host app must
 supply: its domain vocabulary, location model, device-key management, ORM or SDK behind `KioskBackend`,
@@ -139,6 +145,7 @@ the templates is there for a reason `references/provenance.md` records, and that
 read it before simplifying anything, and add an entry for anything you change. Commits follow Conventional
 Commits and releases follow [STANDARD.md](https://github.com/timerise-ai/skills/blob/main/STANDARD.md) in the
 index; `CLAUDE.md` carries the full editing conventions.
+
 ## Part of the Timerise Skills
 
 This is one of the [Timerise Skills](https://github.com/timerise-ai/skills): modules for **Next.js App

@@ -1,8 +1,8 @@
 # Kiosk API contract
 
 Four kiosk-owned endpoints plus the shared read endpoints the screens consume.
-The kiosk client is unauthenticated by nature — anyone standing at the screen
-is a legitimate user — so the server, not the client, is where every trust
+The kiosk client is unauthenticated by nature, anyone standing at the screen
+is a legitimate user, so the server, not the client, is where every trust
 decision lives.
 
 ## Route surface
@@ -15,7 +15,7 @@ decision lives.
 | `/api/kiosk/booking/edit` | POST | Update participants / contact on a booking | device key |
 | `/api/pricing/get?locationId=` | GET | Price catalog (slots + consumables) | public read |
 | `/api/inventory/equipment?locationId=&from=&to=` | GET | Equipment available in a window | public read |
-| `/api/booking/slots?…` | GET | Month + day availability | public read, CDN-cached |
+| `/api/booking/slots?...` | GET | Month + day availability | public read, CDN-cached |
 
 ## Device auth
 
@@ -30,7 +30,7 @@ export function checkKioskKey(req: Request): boolean {
 ```
 
 **When the key is configured, a missing header is a 401.** The earlier implementation checked
-`if (sent && configured && sent !== configured)` — i.e. only a *wrong* key was
+`if (sent && configured && sent !== configured)`, i.e. only a *wrong* key was
 rejected and omitting the header bypassed auth entirely, on all four routes,
 while the kiosk client never sent the header at all. Configure the key, send
 it from a small `kioskFetch` wrapper (server-injected, not `NEXT_PUBLIC_`
@@ -80,7 +80,7 @@ Request:
 
 ```ts
 export interface KioskCreateRequest {
-  idempotencyKey: string;            // the client sessionId — see below
+  idempotencyKey: string;            // the client sessionId - see below
   serviceType: string;
   locationId: string;
   locale: string;
@@ -108,7 +108,7 @@ export interface KioskCreateRequest {
 Two deliberate absences versus the earlier implementation:
 
 - **No prices anywhere in the request.** The earlier implementation sent `price` per slot and
-  per consumable and the server fed them straight into the total — and into
+  per consumable and the server fed them straight into the total, and into
   the Stripe charge amount. A tampered request could buy anything for zero.
   The server resolves every price from its own catalog by id
   ([booking-backend.md](booking-backend.md)); the client's displayed total is
@@ -118,12 +118,12 @@ Two deliberate absences versus the earlier implementation:
   slotId alongside the cart and the server never read them.
 
 Response `201`: `{ ok: true, data: { bookingId, shortId, checkoutUrl? } }`.
-`checkoutUrl` present iff `paymentMethod === 'online'` — render it as a QR
+`checkoutUrl` present iff `paymentMethod === 'online'`, render it as a QR
 ([screens.md](screens.md)).
 
 ### Validation
 
-Dependency-free guards (swap for the host's schema library if it has one —
+Dependency-free guards (swap for the host's schema library if it has one:
 that is the validation seam). Never `as KioskCreateRequest` a parsed body:
 the earlier implementation did, and a missing `cart` field became a 500 with a leaked stack
 message.
@@ -189,9 +189,9 @@ The client sends its `sessionId` as `idempotencyKey`. Server-side:
 
 ```
 1. Look up an existing booking where idempotencyKey == key (indexed field).
-2. Found and < 10 min old → return it (200, same payload shape) — this is a
+2. Found and < 10 min old -> return it (200, same payload shape) - this is a
    retry of a request whose response was lost.
-3. Not found → create, storing the key on the booking.
+3. Not found -> create, storing the key on the booking.
 ```
 
 The earlier implementation's only duplicate protection was a client-side `submitting` boolean:
@@ -219,7 +219,7 @@ export async function POST(request: Request) {
   if (existing) return ok({ bookingId: existing.id, shortId: existing.shortId,
                             checkoutUrl: existing.checkoutUrl });
 
-  // 1. Server-side pricing — the only prices that exist.
+  // 1. Server-side pricing - the only prices that exist.
   const pricing = await backend.resolvePricing({
     locationId: body.locationId, serviceType: body.serviceType,
     slots: body.cart.slots, consumables: body.cart.consumables,
@@ -263,10 +263,10 @@ export async function POST(request: Request) {
       paymentMethod: body.paymentMethod, stockLockIds: locks.ids, source: 'kiosk',
     });
   } catch (e) {
-    await backend.releaseStockLocks(locks.ids);           // ← the fix
+    await backend.releaseStockLocks(locks.ids);           // <- the fix
     if (isCapacityError(e)) return err(409, e.reason, { code: e.code });
     console.error('kiosk create failed', e);
-    return err(500, 'booking_failed');                    // generic — no e.message
+    return err(500, 'booking_failed');                    // generic - no e.message
   }
 
   if (body.paymentMethod === 'counter') {
@@ -293,7 +293,7 @@ Notes on that ordering:
   swallowed: the earlier implementation let a "usage limit reached" throw escape *after*
   creating the booking, returning a 500 for a booking that existed.
 - The confirmation email is fire-and-forget by design (a kiosk user is
-  standing there; don't make them wait on SendGrid) — but with `.catch`, or
+  standing there; don't make them wait on SendGrid), but with `.catch`, or
   every mail outage becomes an unhandled rejection.
 - The checkout redirect base URL must be a required env var. The earlier implementation
   defaulted it to `http://localhost:3000`, so a missing env produced Stripe
@@ -301,7 +301,7 @@ Notes on that ordering:
 
 ## Lookup
 
-`GET /api/kiosk/booking/lookup?shortId=` — min 3 chars, trimmed, uppercased.
+`GET /api/kiosk/booking/lookup?shortId=`, min 3 chars, trimmed, uppercased.
 
 Three protections, all missing in the earlier implementation, all mandatory because the short
 code is guessable (8 chars of a 31-char alphabet) and the endpoint is
@@ -311,10 +311,10 @@ reachable by anything that can reach the kiosk's origin:
    earlier implementation had a rate-limit helper used by exactly one other route).
 2. **Mask the PII.** The edit flow needs to *show* whose booking it is, not
    exfiltrate it: return `fullName` as given (the person typed the code from
-   their own confirmation), but mask email (`m•••@d•••.com`) and phone (last
+   their own confirmation), but mask email (`m***@d***.com`) and phone (last
    3 digits). The full values never leave the server on this route; the edit
    endpoint accepts new values without echoing old ones.
-3. Return the same `notFound` for "no such booking" and "wrong location" —
+3. Return the same `notFound` for "no such booking" and "wrong location";
    don't oracle which codes exist elsewhere.
 
 Response data: the `LookupBooking` shape from
@@ -345,6 +345,6 @@ metadata (the earlier implementation did the latter, clobbering any concurrent c
 Every kiosk request goes through **one** fetch wrapper that (a) attaches the
 device key and (b) applies the offline base-URL failover
 ([realtime-offline.md](realtime-offline.md)). The earlier implementation had two components
-calling bare `fetch` — exactly those two features (promo validation, booking
+calling bare `fetch`, exactly those two features (promo validation, booking
 lookup) broke whenever the kiosk was in offline failover while everything
 else kept working.

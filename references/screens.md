@@ -1,7 +1,7 @@
 # Screens and kiosk-grade UI machinery
 
 The kiosk is one route rendering one component per `KioskStep`
-([state-machine.md](state-machine.md)). This file is the screen contract —
+([state-machine.md](state-machine.md)). This file is the screen contract:
 structure, states and interaction rules. Appearance (colors, radii, fonts)
 comes from the host's design system; visual choices are described only where
 the *intent* matters (a kiosk in a bright room wants high contrast and huge
@@ -10,10 +10,10 @@ targets, whatever the palette).
 ## Screen flow
 
 ```
-service-select ──► date-select ──► time-select ──► participants ──► equipment ──► summary ──► confirmation
-      │                                                                                          (auto-reset 30 s)
-      └─"I have a booking"──► booking-lookup ──► booking-edit ──┬─ add consumables ─► confirmation
-                                                                └─ add slot ─► (service-select, parentBookingId set)
+service-select --> date-select --> time-select --> participants --> equipment --> summary --> confirmation
+      |                                                                                          (auto-reset 30 s)
+      +-"I have a booking"--> booking-lookup --> booking-edit --+- add consumables -> confirmation
+                                                                +- add slot -> (service-select, parentBookingId set)
 ```
 
 Header on every screen except entry/confirmation: back button (dispatches
@@ -24,18 +24,18 @@ step), language switcher right.
 
 | Step | Renders | Required states | Key rules |
 |---|---|---|---|
-| *(no `?locationId`)* | location grid | loading, **empty**, list | Auto-redirect when exactly one location. The earlier implementation had no empty state — ship one. |
-| `service-select` | large cards per service type + "I have a booking" | — | Doubles as the attract screen; inactivity overlay suppressed here. |
-| `date-select` | month calendar, Monday-first | loading, no-slots day, past-day disabled | Availability-aware: dead days disabled. "Today" must come from a ticking clock — the earlier implementation memoized it once, so a kiosk left on overnight disabled the wrong days until reload. |
-| `time-select` | slot grid with `available/total` per slot | loading, empty (`noSlots`), past-slot disabled | Live indicator + last-updated age. Past cutoff needs a ≤1 s tick (see below). |
+| *(no `?locationId`)* | location grid | loading, **empty**, list | Auto-redirect when exactly one location. The earlier implementation had no empty state, ship one. |
+| `service-select` | large cards per service type + "I have a booking" | none | Doubles as the attract screen; inactivity overlay suppressed here. |
+| `date-select` | month calendar, Monday-first | loading, no-slots day, past-day disabled | Availability-aware: dead days disabled. "Today" must come from a ticking clock, the earlier implementation memoized it once, so a kiosk left on overnight disabled the wrong days until reload. |
+| `time-select` | slot grid with `available/total` per slot | loading, empty (`noSlots`), past-slot disabled | Live indicator + last-updated age. Past cutoff needs a at most 1 s tick (see below). |
 | `participants` | station tiles + per-station name list, on-screen keyboard | station taken (disabled), validation (first name required) | Tiles re-render from `selectedSlot.takenStations`; `REFRESH_SLOT` already dropped stolen selections, so local UI state must derive from context, not a one-shot `useState` init. |
 | `equipment` | category tabs, item grid, consumable quantity steppers | empty category, item disabled when no compatible consumable in stock | Selecting equipment auto-adds its compatible consumable line (match on `compatibilityKey`). Skippable step. |
 | `summary` | order recap, promo code, contact fields, payment choice, sticky submit bar | promo error, submit error inline, submitting | All text fields open the on-screen keyboard. Payment method resolved at submit time (below). |
-| `confirmation` | huge `shortId`, per-method instructions, QR for online payment, countdown | — | Auto-reset 30 s. |
-| `booking-lookup` | code entry (min 3 chars) via on-screen keyboard | searching, not-found | 404 and network failure both show `notFound` — a kiosk user cannot act on the difference. |
+| `confirmation` | huge `shortId`, per-method instructions, QR for online payment, countdown | none | Auto-reset 30 s. |
+| `booking-lookup` | code entry (min 3 chars) via on-screen keyboard | searching, not-found | 404 and network failure both show `notFound`, a kiosk user cannot act on the difference. |
 | `booking-edit` | booking recap + actions: add consumables, add slot | no consumables configured, submitting, error | "Add slot" stores `parentBookingId`, resets to `service-select`, and shows a persistent "editing booking #X" banner until done. |
 
-Errors are always inline text next to the action that failed — never toasts.
+Errors are always inline text next to the action that failed, never toasts.
 A kiosk user is standing at arm's length looking at one thing; a toast in a
 corner is invisible and cannot be dismissed by the next customer.
 
@@ -51,15 +51,15 @@ const effectiveMethod: 'online' | 'counter' =
 ```
 
 The earlier implementation initialized the method once in `useState` and hid the online tile
-when offline — but a user who picked "online" and then lost connectivity still
+when offline, but a user who picked "online" and then lost connectivity still
 submitted an online booking that could never be paid.
 
 **Online payment on a kiosk means a QR code.** The kiosk itself has no card
 reader and must not navigate away to a payment page it can never come back
-from (main flow). Render `checkoutUrl` as a real QR (any QR lib — it is the
+from (main flow). Render `checkoutUrl` as a real QR (any QR lib, it is the
 one dependency this module justifies adding) so the customer pays on their
 phone; keep the auto-reset running so an abandoned QR clears. The earlier implementation
-shipped a text placeholder reading `QR: <url>...` — online payment was a
+shipped a text placeholder reading `QR: <url>...`, online payment was a
 dead end in production.
 
 ## On-screen keyboard
@@ -67,7 +67,7 @@ dead end in production.
 Kiosks run with the OS keyboard disabled; every text input must set
 `inputMode="none"` (suppresses any native keyboard) **and** open this
 component. The earlier implementation set `inputMode="none"` on the contact, promo and
-booking-code fields without wiring the keyboard — those screens were
+booking-code fields without wiring the keyboard, those screens were
 unusable on a real touchscreen. Rule: if a field is focusable, it opens the
 keyboard, no exceptions.
 
@@ -89,7 +89,7 @@ interface KioskKeyboardProps {
   title: string;
   mode?: KeyboardMode;
   /** Locale-specific extra row, e.g. Polish 'ą ć ę ł ń ó ś ż ź'. Comes from
-   *  the dictionary so each language ships its own — never hardcode one. */
+   *  the dictionary so each language ships its own - never hardcode one. */
   accentRow?: string[];
   strings: KeyboardStrings;
   maxLength?: number;
@@ -136,7 +136,7 @@ export function KioskKeyboard({
     >
       <div>
         <span>{title}</span>
-        <output aria-live="polite">{value || ' '}</output>
+        <output aria-live="polite">{value || '\u00A0'}</output>
         <span>{value.length}/{maxLength}</span>
       </div>
       {rows.map((row, i) => (
@@ -160,7 +160,7 @@ export function KioskKeyboard({
         </button>
         <button type="button" aria-label={strings.backspace}
           onClick={() => setValue(value.slice(0, -1))}>
-          ⌫
+          {'\u232B'}
         </button>
         <button type="button" onClick={onCancel}>{strings.cancel}</button>
         <button type="button" onClick={() => onSave(value.trim())}>{strings.save}</button>
@@ -170,8 +170,8 @@ export function KioskKeyboard({
 }
 ```
 
-Mode mapping: participant names and contact name → `text`; email → `email`;
-phone → `code` is acceptable, digits dominate; promo and booking code →
+Mode mapping: participant names and contact name to `text`; email to `email`;
+phone to `code` is acceptable, digits dominate; promo and booking code to
 `code` (auto-uppercase the result at the call site). The `mode`/`accentRow`
 generalization is an **addition**: the earlier implementation shipped a single
 QWERTY layout with one hardcoded diacritics row and used the keyboard on one
@@ -212,17 +212,17 @@ Wiring (values proven in production):
 
 | Timer | Value | Behavior |
 |---|---|---|
-| Inactivity | 120 s | Show full-screen dim overlay ("touch to continue"); any tap hides it. On top of that, `RESET` the session — except on `service-select` (nothing to lose) and the `booking-*` side-flow steps (a staff-assisted flow shouldn't self-destruct mid-help). |
-| Confirmation auto-reset | 30 s | Visible countdown ("returning in {n}s"), then `RESET`. Restart the countdown state whenever the effect re-runs — the earlier implementation kept a stale `remaining` across re-runs. |
+| Inactivity | 120 s | Show full-screen dim overlay ("touch to continue"); any tap hides it. On top of that, `RESET` the session, except on `service-select` (nothing to lose) and the `booking-*` side-flow steps (a staff-assisted flow shouldn't self-destruct mid-help). |
+| Confirmation auto-reset | 30 s | Visible countdown ("returning in {n}s"), then `RESET`. Restart the countdown state whenever the effect re-runs, the earlier implementation kept a stale `remaining` across re-runs. |
 | Now-tick for time UI | 1 s where seconds are shown | The earlier implementation ticked every 60 s under a "{n}s ago" label and a slot-started cutoff: the age lurched in minute jumps and started slots stayed tappable up to 59 s. Tick at the granularity you display. |
 
 The overlay itself: full-screen fixed layer, `role="button"`, high-contrast
-"touch the screen" affordance, fade in/out. Suppress it on `service-select` —
+"touch the screen" affordance, fade in/out. Suppress it on `service-select`:
 the entry screen *is* the idle state.
 
 ## Touch hardening
 
-On the kiosk root element — this is what makes a web page feel like an
+On the kiosk root element, this is what makes a web page feel like an
 appliance, and none of it is optional on real hardware:
 
 ```tsx
@@ -240,14 +240,14 @@ appliance, and none of it is optional on real hardware:
 
 Interaction rules:
 
-- **Touch targets ≥ 44 px** on every interactive element; primary actions
+- **Touch targets at least 44 px** on every interactive element; primary actions
   56-64 px. The earlier implementation's most-used quantity steppers were
   32 px while a less used screen's were 44 px; audit yours once, consistently.
 - Tap feedback on everything actionable: a ~0.95 scale-on-press (Framer
   Motion `whileTap` in the earlier implementation; CSS `:active` transform works identically).
 - Scroll containers get hidden scrollbars but *remain* scrollable; wide
   content scrolls inside its own container.
-- No hover states as the only affordance — there is no hover on a kiosk.
+- No hover states as the only affordance, there is no hover on a kiosk.
 - Do **not** strip focus outlines globally. The earlier implementation did; keyboard/switch
   access needs them, and a kiosk with an attached keypad is a real deployment.
 
@@ -257,7 +257,7 @@ Fullscreen is not the web app's job: launch the browser in kiosk mode (see
 ## Modals
 
 The kiosk hand-rolls its one modal (cancel-confirm on logo tap) rather than
-using a host dialog primitive — a defensible choice on a touch appliance, but
+using a host dialog primitive, a defensible choice on a touch appliance, but
 it must still be a dialog: `role="dialog"`, `aria-modal="true"`, initial focus
 on the safe action ("continue booking"), and the destructive action ("yes,
 cancel") visually distinct. The earlier implementation had none of these. If the host has a
@@ -266,7 +266,7 @@ dialog primitive, prefer it.
 ## Strings
 
 Every string is a dictionary key; slices are passed down as props from the
-server-loaded dictionary (no client i18n runtime needed — the kiosk is one
+server-loaded dictionary (no client i18n runtime needed, the kiosk is one
 page). Key tree the screens consume:
 
 ```
@@ -290,11 +290,11 @@ kiosk.bookingEdit    { title, existingBooking, addConsumables, addSlot,
                        consumableLabel, addMore, back, confirm, empty }
 kiosk.confirmation   { title, orderNumber, payOnlineInstructions,
                        payCounterInstructions, newBooking, autoReset }
-kiosk.idle           (string — "touch to continue")
+kiosk.idle           (string - "touch to continue")
 kiosk.cancelConfirm  { title, yes, no }
 kiosk.editingBooking (template with {shortId})
-kiosk.live           { label, ago }   — ago is a template with {seconds}
-kiosk.offline        (string — offline banner)
+kiosk.live           { label, ago }   - ago is a template with {seconds}
+kiosk.offline        (string - offline banner)
 kiosk.back           (string)
 ```
 
@@ -302,5 +302,5 @@ Rules learned the hard way: make every key the screens read **required** in
 the dictionary type (the earlier implementation's optional keys hid missing translations);
 booking-availability error strings go through the dictionary too (the earlier implementation
 hardcoded them in one language inside a shared hook); and the default station
-label sent to the API is data, not UI copy — never fall back to a hardcoded
+label sent to the API is data, not UI copy, never fall back to a hardcoded
 localized string for a value that gets persisted.

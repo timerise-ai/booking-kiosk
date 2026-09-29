@@ -1,19 +1,24 @@
 ---
 name: booking-kiosk
 description: >
-  Build a self-service touchscreen booking kiosk: a stepped walk-up flow
-  (service → date → time slot → stations & participant names → equipment &
-  consumables → summary → confirmation) with on-screen keyboard, inactivity
-  auto-reset, pay-at-counter or pay-by-QR, live availability refresh, and a
-  find-my-booking edit flow. Use when: (1) a venue (gym, karting, bowling,
-  climbing, escape room, clinic) wants an unattended booking terminal,
-  (2) the user mentions: "kiosk mode", "self-service kiosk", "touch screen
-  booking", "walk-up terminal", "on-screen keyboard", "counter payment",
-  "PENDING_COUNTER_PAYMENT", (3) an existing kiosk needs auditing against
-  the hard rules. Ships the session state machine with its reducer suite, the
-  screen contract, the server-priced idempotent API contract, and the
-  booking-backend seam. Next.js App Router oriented; backend- and
-  payment-provider-agnostic.
+  Build a self-service touchscreen booking kiosk for a venue: a stepped walk-up
+  flow from service, date and time slot through stations and participant names,
+  equipment and consumables, to summary and confirmation, with an on-screen
+  keyboard, inactivity auto-reset, pay-at-counter or pay-by-QR, live
+  availability refresh and a find-my-booking edit flow. Use when: (1) a venue
+  (gym, karting, bowling, climbing, escape room, clinic) wants an unattended
+  booking terminal, (2) an app that already books online needs a kiosk mode,
+  (3) an existing kiosk needs auditing against the hard rules, (4) the user
+  mentions: kiosk mode, self-service kiosk, touch screen booking, walk-up
+  terminal, on-screen keyboard, inputMode none, inactivity reset, counter
+  payment, PENDING_COUNTER_PAYMENT, x-kiosk-api-key, SET_SLOT, REFRESH_SLOT,
+  PROMO_INVALID, stock lock. Carries the session reducer with its 12-test suite,
+  the screen contract and dictionary key tree, a server-priced idempotent API
+  contract with guard tables, stock locks released on every failure path, and
+  offline failover against a LAN server. Next.js App Router with React context;
+  the KioskBackend interface is the seam, so the booking store, payment provider
+  and realtime channel are the host's. Not a staff POS, not digital signage and
+  not the on-prem fallback server itself.
 ---
 
 # Self-Service Booking Kiosk
@@ -26,7 +31,7 @@ from those two facts.
 
 ## When to use
 
-- Building a walk-up booking terminal for slot-based capacity (stations ×
+- Building a walk-up booking terminal for slot-based capacity (stations by
   time windows) with optional equipment and consumable add-ons.
 - Adding kiosk mode to an app that already has online booking.
 - Auditing an existing kiosk against the hard rules below;
@@ -34,28 +39,28 @@ from those two facts.
 
 ## When NOT to use
 
-- **On-prem offline fallback server** — that is the sibling
+- **On-prem offline fallback server**: that is the sibling
   `island-mode-server` skill; this skill only defines the kiosk's client-side
   failover contract.
-- **Digital signage / display screens** — different capability (playback, no
+- **Digital signage / display screens**: different capability (playback, no
   input), different skill.
-- **Staff-facing POS or admin booking tools** — staff are authenticated and
+- **Staff-facing POS or admin booking tools**: staff are authenticated and
   trusted; this skill's trust model is wrong for them.
-- **A plain booking website** — take the backend seam if useful, but the
+- **A plain booking website**: take the backend seam if useful, but the
   kiosk machinery (keyboard, timers, touch hardening) is dead weight there.
 
 ## Architecture
 
 ```
  KioskProvider (pure reducer: steps, selections, cart, sessionId)
-   │ props: dictionary slices        hooks: pricing · equipment · availability
- screens: service→date→time→participants→equipment→summary→confirmation
-   │                         └─ side flow: booking-lookup → booking-edit
-   ▼ one fetch wrapper (device key + offline base-URL failover)
- /api/kiosk/booking/{create,lookup,add-items,edit}     ← all trust decisions
-   ▼ KioskBackend seam: server pricing · promo · stock locks (TTL 15 min)
-     transactional capacity re-check · counter/online payment · webhook
- realtime: location.lastBookingChangeAt → silent refetch → REFRESH_SLOT
+   | props: dictionary slices        hooks: pricing, equipment, availability
+ screens: service->date->time->participants->equipment->summary->confirmation
+   |                         +- side flow: booking-lookup -> booking-edit
+   v one fetch wrapper (device key + offline base-URL failover)
+ /api/kiosk/booking/{create,lookup,add-items,edit}     <- all trust decisions
+   v KioskBackend seam: server pricing, promo, stock locks (TTL 15 min)
+     transactional capacity re-check, counter/online payment, webhook
+ realtime: location.lastBookingChangeAt -> silent refetch -> REFRESH_SLOT
 ```
 
 ## Critical facts
@@ -65,14 +70,14 @@ from those two facts.
    a customer off the summary screen mid-purchase.
 2. **The server prices everything.** Nothing money-shaped crosses the wire
    inbound; the client total is a preview.
-3. **Counter payment is the resilience path** — booking confirms with
+3. **Counter payment is the resilience path**: a booking confirms with
    `PENDING_COUNTER_PAYMENT`, no payment integration in the loop; online
    payment on a kiosk means a QR the customer scans, never navigating the
    kiosk away.
 4. **Every text input opens the on-screen keyboard** and sets
    `inputMode="none"`. One without the other is an unusable screen.
 5. **Stock locks are TTL-reserved (15 min) and released on every failure
-   path** — the sweep job is the safety net, not the mechanism.
+   path.** The sweep job is the safety net, not the mechanism.
 6. **The client sessionId is the idempotency key.** Double-tap, retry, lost
    response: at most one booking.
 
@@ -101,7 +106,7 @@ from those two facts.
 1. Read [state-machine.md](references/state-machine.md); implement the
    reducer and provider, run its test suite.
 2. Build screens against the contract in [screens.md](references/screens.md)
-   with the host's design system — keyboard, timers, touch hardening.
+   with the host's design system: keyboard, timers, touch hardening.
 3. Implement the routes from [api-contract.md](references/api-contract.md)
    over the [booking-backend.md](references/booking-backend.md) seam.
 4. Wire freshness + offline per
@@ -110,9 +115,13 @@ from those two facts.
 
 ## Adaptation Contract
 
+This skill keeps its seam contract here rather than in a `references/adaptation.md`: the
+table is the full boundary of what the host supplies, and the rename table sits in
+[state-machine.md](references/state-machine.md).
+
 | Seam | This skill ships | The host supplies |
 |---|---|---|
-| Domain entities | service/station/equipment/consumable + rename table | its vocabulary (court, kart, bay…) |
+| Domain entities | service/station/equipment/consumable + rename table | its vocabulary (court, kart, bay) |
 | Tenant scope | `locationId` in the kiosk URL, server-verified | its location/site model |
 | Device auth | `x-kiosk-api-key` contract | key management; optional per-device tokens |
 | Data access | `KioskBackend` interface; Firestore reference + SQL sketch | its ORM/SDK |
