@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2026-09-29
+
+Fix release, from the prompt-1 agent eval runs against 0.1.7: one agent reported four template defects in
+its handover instead of editing them, and each was reproduced before the fix.
+
+### Fixed
+
+- `parseCreateRequest` accepted a number as `promoCode`, an object as `parentBookingId`, an array as
+  `email`, a missing `locale`, any value as `equipment` and a `null` slot, and passed a missing
+  `consumables` array through as `undefined`. Every optional field is now absent or a bounded string,
+  equipment lines are checked, and the new `parseCart` returns the normalised cart. Apps built from earlier
+  versions copy the validation block from `references/api-contract.md`.
+- A stock confirm that threw on the counter path escaped the create route as a 500 for a booking that
+  existed. The route now logs it and answers 201; `confirmStockLocks` retries once, flags the booking and
+  rejects.
+- The inactivity reset spared `service-select` while `parentBookingId` was set, so the next customer could
+  book onto a looked-up booking, and spared the side flow, which showed a customer's booking until touched.
+  `resetsOnIdle` in the reducer module now spares only the untouched entry screen, covered by a fourteenth
+  reducer test. Apps built from earlier versions wire their inactivity timer to it.
+
+### Added
+
+- `POST /api/kiosk/promo/validate`, the summary's promo check, priced on the server from the cart.
+- A per-attempt `idempotencyKey` on add-items, in its guard table.
+- `kiosk.errors` in the dictionary key tree, one key per envelope code plus `generic`.
+
+### Changed
+
+- The reducer suite is 14 tests; the ledger in `references/provenance.md` has seventeen entries.
+
 ## [0.1.7] - 2026-09-29
 
 Fix release, from scoring the prompt-1 agent eval runs against 0.1.6 and verifying every template.

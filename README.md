@@ -58,7 +58,7 @@ mkdir -p ~/.agents/skills
 ln -s ~/.claude/skills/booking-kiosk ~/.agents/skills/booking-kiosk
 ```
 
-Update the skill with `git pull` in its directory. The current release is **0.1.7**. See
+Update the skill with `git pull` in its directory. The current release is **0.1.8**. See
 [`CHANGELOG.md`](CHANGELOG.md). The [skills index](https://github.com/timerise-ai/skills) lists the other
 Timerise Skills and how to install them all at once.
 
