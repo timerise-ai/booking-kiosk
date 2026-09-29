@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2026-09-29
+
+Fix release, from scoring the prompt-1 agent eval runs against 0.1.6 and verifying every template.
+
+### Fixed
+
+- The reducer carried a stale selection into a new slot: `SET_SLOT` kept stations already taken in the slot
+  just picked, which the participants screen showed as selected and the submit sent into a 409, and
+  `SET_DATE` kept the previous date's slot. `SET_DATE` now drops the slot and `SET_SLOT` keeps only the
+  stations free in the new one, names aligned; it still navigates. A thirteenth reducer test covers both.
+  Apps built from earlier versions copy the two reducer arms and the test from
+  `references/state-machine.md`.
+- The create route's online path left a booking PENDING with its stock locks held when the checkout
+  session could not be created, breaking the fifth hard rule. The route now calls the new
+  `KioskBackend.failPendingBooking`, which releases locks and stations and clears the idempotency key, and
+  answers 502. Apps built from earlier versions add the method and the catch around
+  `createCheckoutSession`.
+
+### Added
+
+- `createKioskFetch` in `references/api-contract.md`: the one fetch wrapper as code, carrying the device
+  key, the failover base URL and the error envelope, with how the page injects the key and the LAN URL.
+- Every template names its destination on its first line, and the create route has its imports.
+- `checkKioskKey` checks presence first, then compares SHA-256 digests with `timingSafeEqual`; two agents
+  hardened it this way on their own.
+
+### Changed
+
+- The quick start in `SKILL.md` says to copy templates to their paths unchanged, to install vitest and run
+  the suite as written, which variables `.env.example` lists, and what the handover must tell the operator.
+- `references/operations.md` names `KIOSK_PUBLIC_BASE_URL` and `KIOSK_LAN_FALLBACK_URL` beside
+  `KIOSK_API_KEY`, gives the `.env.example` rule, and says the kiosk is served over HTTPS.
+- The reducer suite is 13 tests; the ledger in `references/provenance.md` has fourteen entries.
+
 ## [0.1.6] - 2026-09-29
 
 Wording release that brings the repository to the skill standard. The templates behave as in 0.1.5; only
