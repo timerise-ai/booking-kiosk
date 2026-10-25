@@ -46,6 +46,8 @@ That file is the rationale layer: read it before "simplifying" anything.
 - `.github/workflows/agent-eval.yml`: the caller of the index's reusable eval workflow, run on every
   published release and on a maintainer's dispatch. It is copied verbatim from the standard and is the same
   in every skill; do not edit it, and never add a trigger on `push` or `pull_request`.
+- `.github/cover.svg`: the README cover, rendered from the skill's cover motif on timerise.ai. It is not
+  skill content; redraw it there, not here.
 
 Sibling directories under `../` (`island-mode-server`, `digital-signage`, `help-center-markdown` and the
 rest) are other skills, not dependencies. `island-mode-server` is referenced by name from `SKILL.md` and

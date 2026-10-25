@@ -1,5 +1,7 @@
 # booking-kiosk
 
+![booking-kiosk](.github/cover.svg)
+
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-open_format-059669)](https://agentskills.io)
 [![skills.sh](https://img.shields.io/badge/skills.sh-npx_skills_add-059669)](https://www.skills.sh)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-compatible-059669)](https://docs.claude.com/en/docs/claude-code/skills)
@@ -93,6 +95,7 @@ the skill stays cheap in context until a topic is actually needed.
 | `LICENSE` | MIT |
 | `evals/` | The prompts an operator types after installing (`prompts.md`) and one file per agent eval: the skill installed into an empty Next.js app, one prompt, no help, then type-checked, built and tested |
 | `.github/workflows/agent-eval.yml` | The caller of the index's reusable eval workflow, run on every published release and on a maintainer's dispatch; the same in every skill |
+| `.github/cover.svg` | The cover at the top of this file: the kiosk motif from the skill's page on timerise.ai |
 
 The seam contract lives in the **Adaptation Contract** table in `SKILL.md`: it bounds what the host app must
 supply: its domain vocabulary, location model, device-key management, ORM or SDK behind `KioskBackend`,
