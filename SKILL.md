@@ -150,7 +150,7 @@ table is the full boundary of what the host supplies, and the rename table sits 
 |---|---|---|
 | State, steps, reducer, session, tests | step, reducer, GO_BACK, REFRESH_SLOT, sessionId, reset, vitest | [state-machine.md](references/state-machine.md) |
 | Screens, keyboard, timers, touch, i18n keys | on-screen keyboard, inactivity, countdown, QR, touch target, dictionary | [screens.md](references/screens.md) |
-| Routes, auth, validation, idempotency, errors | x-kiosk-api-key, 401, 409, idempotency, PROMO_INVALID, lookup, PII, createKioskFetch, fetch wrapper | [api-contract.md](references/api-contract.md) |
+| Routes, auth, validation, idempotency, errors | x-kiosk-api-key, 401, 409, idempotency, PROMO_INVALID, promo validation, lookup, PII, createKioskFetch, fetch wrapper | [api-contract.md](references/api-contract.md) |
 | Capacity, stock, payments, webhook, crons | transaction, stock lock, TTL, PENDING_COUNTER_PAYMENT, webhook, refund | [booking-backend.md](references/booking-backend.md) |
 | Live refresh, caching, offline failover | lastBookingChangeAt, onSnapshot, s-maxage, offline banner, LAN, health poll | [realtime-offline.md](references/realtime-offline.md) |
 | Deploying, gating, operator surface | Edge --kiosk, assigned access, heartbeat, feature gate, env vars, .env.example, smoke test | [operations.md](references/operations.md) |
